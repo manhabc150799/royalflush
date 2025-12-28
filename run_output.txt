@@ -1,0 +1,72 @@
+﻿23:04:14.012 [main] INFO com.mygame.client.service.NetworkService - Kh?i t?o NetworkService...
+23:04:14.102 [main] INFO com.mygame.client.service.NetworkService - NetworkService ?π s?n sαng
+[VisUI] Warning, using invalid libGDX version.
+You are using libGDX 1.14.0 but you need 1.13.5. This may cause unexpected problems and runtime exceptions.
+.\gradlew.bat : Exception in thread "main" com.github.czyzby.lml.util.LmlParsingException: Error occurred during 
+parsing near line 30 of the original file: "login.lml".
+At C:\Users\LENOVO\AppData\Local\Temp\ps-script-240d7d1a-421f-4efd-b24d-be76da6b2124.ps1:80 char:46
++ ... ENOVO\Downloads\Royal FlushG"; .\gradlew.bat :lwjgl3:run 2>&1 | Out-F ...
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Exception in th...e: "login.lml".:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+REASON: Could not find action for: login:attemptLogin with actor: VisTextButton: ??ng nh?p
+	Due implementation of the parser, the real problematic line might SLIGHTLY vary from the given line number(s), but 
+exception message should be clear enough to find the actual error.
+	Currently parsed template part:
+27 |VALID|                         
+28 |VALID|                         <!-- Login button -->
+29 |VALID|                         <textButton id="loginButton" text="??ng nh?p" fillX="true" 
+30 |ERROR|                                    onChange="login:attemptLogin" style="textButton" padTop="10"/>
+31 |     |                         
+32 |     |                         <!-- Loading indicator (?n m?c ??nh) -->
+33 |     |                         <label id="loginLoading" text="?ang ??ng nh?p..." visible="false" style="loading" 
+padTop="10" align="center"/>
+
+	If this is not enough to determine the error, call AbstractLmlParser#setLinesAmountPrintedOnException(int) with a 
+suitable number. If you keep a lot of nested macros and want to see the whole invocation tree, try debugging through 
+parsing and use getTemplateReader().toString() before exception occurs to check all current parsed template layers.
+	at com.github.czyzby.lml.parser.impl.AbstractLmlParser.throwError(AbstractLmlParser.java:875)
+	at com.github.czyzby.lml.parser.impl.AbstractLmlParser.throwError(AbstractLmlParser.java:870)
+	at com.github.czyzby.lml.parser.impl.attribute.OnChangeLmlAttribute.process(OnChangeLmlAttribute.java:24)
+	at com.github.czyzby.lml.parser.impl.attribute.OnChangeLmlAttribute.process(OnChangeLmlAttribute.java:14)
+	at com.github.czyzby.lml.util.LmlUtilities.processAttributes(LmlUtilities.java:450)
+	at com.github.czyzby.lml.parser.impl.tag.AbstractActorLmlTag.processTagAttributes(AbstractActorLmlTag.java:96)
+	at com.github.czyzby.lml.parser.impl.tag.AbstractActorLmlTag.prepareActor(AbstractActorLmlTag.java:51)
+	at com.github.czyzby.lml.parser.impl.tag.AbstractActorLmlTag.<init>(AbstractActorLmlTag.java:31)
+	at com.github.czyzby.lml.parser.impl.tag.actor.TableLmlTag.<init>(TableLmlTag.java:17)
+	at com.github.czyzby.lml.parser.impl.tag.actor.ButtonLmlTag.<init>(ButtonLmlTag.java:14)
+	at com.github.czyzby.lml.parser.impl.tag.actor.TextButtonLmlTag.<init>(TextButtonLmlTag.java:18)
+	at com.github.czyzby.lml.vis.parser.impl.tag.VisTextButtonLmlTag.<init>(VisTextButtonLmlTag.java:17)
+	at com.github.czyzby.lml.vis.parser.impl.tag.provider.VisTextButtonLmlTagProvider.create(VisTextButtonLmlTagProvider.j
+ava:14)
+	at com.github.czyzby.lml.parser.impl.DefaultLmlParser.processRegularTag(DefaultLmlParser.java:525)
+	at com.github.czyzby.lml.parser.impl.DefaultLmlParser.processTagEntity(DefaultLmlParser.java:333)
+	at com.github.czyzby.lml.parser.impl.DefaultLmlParser.processTag(DefaultLmlParser.java:308)
+	at com.github.czyzby.lml.parser.impl.DefaultLmlParser.parse(DefaultLmlParser.java:139)
+	at com.github.czyzby.lml.parser.impl.DefaultLmlParser.parseTemplate(DefaultLmlParser.java:100)
+	at com.github.czyzby.lml.parser.impl.AbstractLmlParser.parseTemplate(AbstractLmlParser.java:197)
+	at com.github.czyzby.lml.parser.impl.AbstractLmlParser.createView(AbstractLmlParser.java:232)
+	at com.github.czyzby.autumn.mvc.component.ui.controller.impl.AnnotatedViewController.createView(AnnotatedViewControlle
+r.java:76)
+	at com.github.czyzby.autumn.mvc.component.ui.InterfaceService.initiateView(InterfaceService.java:212)
+	at com.github.czyzby.autumn.mvc.component.ui.InterfaceService.access$600(InterfaceService.java:63)
+	at com.github.czyzby.autumn.mvc.component.ui.InterfaceService$ScreenSwitchingRunnable.run(InterfaceService.java:647)
+	at com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application.loop(Lwjgl3Application.java:197)
+	at com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application.<init>(Lwjgl3Application.java:153)
+	at com.mygame.client.lwjgl3.Lwjgl3Launcher.createApplication(Lwjgl3Launcher.java:18)
+	at com.mygame.client.lwjgl3.Lwjgl3Launcher.main(Lwjgl3Launcher.java:13)
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':lwjgl3:run'.
+> Process 'command 'C:\Program Files\Java\jdk-17\bin\java.exe'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 7s

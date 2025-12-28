@@ -1,0 +1,180 @@
+{
+"com.badlogic.gdx.graphics.g2d.BitmapFont": {
+	"Big_blue_font": {
+		"file": "04B_30__(3).fnt",
+		"scaledSize": -1,
+		"markupEnabled": false,
+		"flip": false
+	},
+	"Blue_font": {
+		"file": "04B_30__.fnt",
+		"scaledSize": -1,
+		"markupEnabled": false,
+		"flip": false
+	},
+	"Green_font": {
+		"file": "04B_30__(1).fnt",
+		"scaledSize": -1,
+		"markupEnabled": false,
+		"flip": false
+	},
+	"Pink_font": {
+		"file": "04B_30__(2).fnt",
+		"scaledSize": -1,
+		"markupEnabled": false,
+		"flip": false
+	}
+},
+"com.badlogic.gdx.graphics.Color": {
+	"RGBA_0_246_255_255": {
+		"r": 0,
+		"g": 0.9647059,
+		"b": 1,
+		"a": 1
+	},
+	"RGBA_114_255_125_255": {
+		"r": 0.44705883,
+		"g": 1,
+		"b": 0.49019608,
+		"a": 1
+	},
+	"RGBA_255_188_241_255": {
+		"r": 1,
+		"g": 0.7372549,
+		"b": 0.94509804,
+		"a": 1
+	}
+},
+"com.badlogic.gdx.scenes.scene2d.ui.Button$ButtonStyle": {
+	"question_button": {
+		"up": "btn__question_mark1",
+		"down": "btn__question_mark2"
+	},
+	"minus_button": {
+		"up": "btn_minus1",
+		"down": "btn_minus2"
+	},
+	"bet_button": {
+		"up": "btn_bet1",
+		"down": "btn_bet2"
+	},
+	"cancel_button": {
+		"up": "btn_cancel1",
+		"down": "btn_cancel2"
+	},
+	"Check_button": {
+		"up": "btn_check1",
+		"down": "btn_check2"
+	},
+	"pause_button": {
+		"up": "btn_pause1",
+		"down": "btn_pause2"
+	},
+	"play_button": {
+		"up": "btn_play1",
+		"down": "btn_play2"
+	},
+	"plus_button": {
+		"up": "btn_plus1",
+		"down": "btn_plus2"
+	}
+},
+"com.badlogic.gdx.scenes.scene2d.ui.Label$LabelStyle": {
+	"default": {
+		"font": "Blue_font",
+		"fontColor": "RGBA_0_246_255_255",
+		"background": "chat_box4"
+	},
+	"panel_label": {
+		"font": "Blue_font",
+		"fontColor": "RGBA_255_188_241_255",
+		"background": "panel1"
+	}
+},
+"com.badlogic.gdx.scenes.scene2d.ui.List$ListStyle": {
+	"default": {
+		"font": "Blue_font",
+		"fontColorSelected": "RGBA_114_255_125_255",
+		"fontColorUnselected": "RGBA_255_188_241_255",
+		"selection": "select_box1",
+		"down": "select_box_invert_color1",
+		"over": "select_box1",
+		"background": "panel1"
+	}
+},
+"com.badlogic.gdx.scenes.scene2d.ui.Slider$SliderStyle": {
+	"default-horizontal": {
+		"backgroundOver": "chat_box3",
+		"backgroundDown": "chat_box3",
+		"knobOver": "small_btn1",
+		"knobDown": "small_btn1",
+		"knobBeforeOver": "small_btn1",
+		"knobBeforeDown": "small_btn1",
+		"background": "chat_box3"
+	},
+	"default-vertical": {
+		"backgroundOver": "select_box1",
+		"backgroundDown": "select_box1",
+		"knobOver": "right",
+		"knobDown": "right",
+		"background": "select_box1"
+	}
+},
+"com.badlogic.gdx.scenes.scene2d.ui.SplitPane$SplitPaneStyle": {
+	"default-horizontal": {
+		"handle": "small_btn1"
+	},
+	"default-vertical": {
+		"handle": "small_btn1"
+	}
+},
+"com.badlogic.gdx.scenes.scene2d.ui.TextButton$TextButtonStyle": {
+	"blue_text_button": {
+		"font": "Blue_font",
+		"fontColor": "RGBA_0_246_255_255",
+		"downFontColor": "RGBA_114_255_125_255",
+		"overFontColor": "RGBA_114_255_125_255",
+		"focusedFontColor": "RGBA_114_255_125_255",
+		"up": "small_btn1",
+		"down": "small_btn2"
+	}
+},
+"com.badlogic.gdx.scenes.scene2d.ui.TextField$TextFieldStyle": {
+	"text_field_login": {
+		"font": "Pink_font",
+		"fontColor": "RGBA_255_188_241_255",
+		"focusedFontColor": "RGBA_255_188_241_255",
+		"disabledFontColor": "RGBA_255_188_241_255",
+		"background": "panel1"
+	}
+},
+"com.badlogic.gdx.scenes.scene2d.ui.TextTooltip$TextTooltipStyle": {
+	"default": {
+		"label": "default",
+		"wrapWidth": -5
+	}
+},
+"com.badlogic.gdx.scenes.scene2d.ui.Tree$TreeStyle": {
+	"default": {
+		"plus": "btn_plus1",
+		"minus": "btn_minus1",
+		"selection": "select_box_invert_color1",
+		"background": "small_btn1"
+	}
+},
+"com.badlogic.gdx.scenes.scene2d.ui.ScrollPane$ScrollPaneStyle": {
+	"default": {
+		"vScrollKnob": "small_btn1",
+		"hScrollKnob": "small_btn1"
+	}
+},
+"com.badlogic.gdx.scenes.scene2d.ui.SelectBox$SelectBoxStyle": {
+	"default": {
+		"font": "Blue_font",
+		"fontColor": "RGBA_0_246_255_255",
+		"background": "select_box1",
+		"scrollStyle": "default",
+		"listStyle": "default"
+	}
+}
+}
