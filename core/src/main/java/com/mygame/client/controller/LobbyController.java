@@ -9,7 +9,6 @@ import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
-import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.github.czyzby.autumn.annotation.Component;
 import com.github.czyzby.autumn.annotation.Inject;
@@ -19,10 +18,12 @@ import com.github.czyzby.autumn.mvc.stereotype.View;
 import com.mygame.client.service.NetworkService;
 import com.mygame.client.service.SessionManager;
 import com.mygame.client.ui.UISkinManager;
-import com.mygame.shared.model.PlayerProfile;
+import com.mygame.shared.model.*;
+import com.mygame.shared.network.packets.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -56,11 +57,19 @@ public class LobbyController implements ViewRenderer {
     private Label creditLabel;
     private Table lobbyListContent;
     private Table leaderboardContent;
+    private Table questListContent;
     private SelectBox<String> modeSelectBox;
 
-    // Simulation Data
-    private Array<Quest> quests = new Array<>();
+    // Real Data from Server
+    private List<LeaderboardEntry> leaderboardEntries = new java.util.ArrayList<>();
+    private List<RoomInfo> roomList = new java.util.ArrayList<>();
+    private List<Quest> quests = new java.util.ArrayList<>();
+    private List<com.mygame.shared.model.MatchHistoryEntry> matchHistoryEntries = new java.util.ArrayList<>();
     private boolean sfxEnabled = true;
+    
+    // Auto-refresh timer for lobby list
+    private float lobbyRefreshTimer = 0f;
+    private static final float LOBBY_REFRESH_INTERVAL = 0.5f; // Refresh every 0.5 seconds
 
     // Custom Label Styles
     private Label.LabelStyle transparentStyle;
@@ -75,12 +84,14 @@ public class LobbyController implements ViewRenderer {
         if (!uiInitialized) {
             this.stage = stage;
 
-            // 1. LOAD DATA FIRST (Fixes missing Daily Quests)
-            loadData();
-
-            // 2. Then build UI
+            // 1. Build UI first
             setupUI();
+            
+            // 2. Setup network listener
             setupNetworkListener();
+            
+            // 3. Request data from server
+            requestServerData();
 
             uiInitialized = true;
             logger.info("LobbyController initialized");
@@ -90,6 +101,13 @@ public class LobbyController implements ViewRenderer {
         ScreenUtils.clear(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
+        // Auto-refresh lobby list every 0.5 seconds
+        lobbyRefreshTimer += delta;
+        if (lobbyRefreshTimer >= LOBBY_REFRESH_INTERVAL) {
+            lobbyRefreshTimer = 0f;
+            requestRoomList();
+        }
+        
         // Update and render stage
         stage.act(Math.min(delta, 1 / 30f));
         stage.draw();
@@ -216,49 +234,69 @@ public class LobbyController implements ViewRenderer {
     private Table createQuestTable() {
         Table table = new Table();
 
-        Table listTable = new Table();
-        listTable.top().left();
+        questListContent = new Table();
+        questListContent.top().left();
+        
+        refreshQuestTable();
 
-        // Defensive null check to prevent crashes
-        if (this.quests == null) {
-            this.quests = new Array<>();
-        }
-
-        for (final Quest q : quests) {
-            Table row = new Table();
-
-            // Allow text to wrap but give it explicit width to breathe
-            Label descLabel = new Label(q.description, transparentStyle);
-            descLabel.setWrap(true);
-            descLabel.setAlignment(Align.left);
-            descLabel.setFontScale(0.9f); // Slightly smaller to fit better
-
-            Button checkBtn = new Button(skin, "Check_button");
-
-            if (!q.isCompleted) {
-                checkBtn.setColor(1, 1, 1, 0.5f);
-            } else {
-                checkBtn.addListener(new ChangeListener() {
-                    @Override
-                    public void changed(ChangeEvent event, Actor actor) {
-                        logger.info("Quest Claimed: {}", q.description);
-                        checkBtn.setColor(Color.GOLD);
-                    }
-                });
-            }
-
-            // Reduced width to 200px so button fits properly
-            row.add(descLabel).width(200).padRight(5).left();
-            row.add(checkBtn).size(30).right();
-
-            listTable.add(row).padBottom(8).row(); // Reduced spacing to fit 5 items vertically
-        }
-
-        ScrollPane scroll = new ScrollPane(listTable, skin);
+        ScrollPane scroll = new ScrollPane(questListContent, skin);
         scroll.setScrollingDisabled(true, false);
         table.add(scroll).expand().fill().pad(15);
 
         return table;
+    }
+    
+    private void refreshQuestTable() {
+        if (questListContent == null) return;
+        
+        questListContent.clearChildren();
+
+        // Display quests
+        if (quests.isEmpty()) {
+            Label emptyLabel = new Label("Loading quests...", transparentStyle);
+            emptyLabel.setColor(Color.GRAY);
+            emptyLabel.setFontScale(0.9f);
+            questListContent.add(emptyLabel).pad(20);
+        } else {
+            for (final Quest q : quests) {
+                Table row = new Table();
+                
+                // Progress text: "description (progress/target)"
+                String progressText = q.description + " (" + q.currentProgress + "/" + q.targetCount + ")";
+                Label descLabel = new Label(progressText, transparentStyle);
+                descLabel.setWrap(true);
+                descLabel.setAlignment(Align.left);
+                descLabel.setFontScale(0.9f);
+                
+                // Color based on status
+                if (q.isClaimed) {
+                    descLabel.setColor(Color.GRAY);
+                } else if (q.isCompleted()) {
+                    descLabel.setColor(Color.GREEN);
+                } else {
+                    descLabel.setColor(Color.WHITE);
+                }
+                
+                Button checkBtn = new Button(skin, "Check_button");
+                
+                if (q.isClaimed || !q.isCompleted()) {
+                    checkBtn.setColor(1, 1, 1, 0.5f);
+                    checkBtn.setDisabled(true);
+                } else {
+                    checkBtn.addListener(new ChangeListener() {
+                        @Override
+                        public void changed(ChangeEvent event, Actor actor) {
+                            claimQuest(q.questId);
+                        }
+                    });
+                }
+                
+                row.add(descLabel).width(200).padRight(5).left();
+                row.add(checkBtn).size(30).right();
+                
+                questListContent.add(row).padBottom(8).row();
+            }
+        }
     }
 
     // =================================================================================
@@ -272,7 +310,7 @@ public class LobbyController implements ViewRenderer {
         Label filterLabel = new Label("Mode:", transparentStyle);
         filterLabel.setColor(Color.BLACK);
 
-        modeSelectBox = new SelectBox<>(skin);
+        modeSelectBox = new SelectBox<>(skin, "default");
         modeSelectBox.setItems("ALL", "POKER", "TIENLEN");
         modeSelectBox.addListener(new ChangeListener() {
             @Override
@@ -302,12 +340,11 @@ public class LobbyController implements ViewRenderer {
         Table buttonTable = new Table();
 
         TextButton createBtn = new TextButton("CREATE", skin, "blue_text_button");
-        createBtn.getLabel().setFontScale(1.3f); // Bigger font
+        createBtn.getLabel().setFontScale(1.3f);
         createBtn.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                logger.info("Create Lobby clicked");
-                // TODO: Show create room dialog
+                showCreateRoomDialog();
             }
         });
 
@@ -316,8 +353,7 @@ public class LobbyController implements ViewRenderer {
         historyBtn.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                logger.info("Match History clicked");
-                // TODO: Show match history
+                showMatchHistoryDialog();
             }
         });
 
@@ -433,64 +469,137 @@ public class LobbyController implements ViewRenderer {
     }
 
     // =================================================================================
-    // DATA LOADING AND UPDATES
+    // NETWORK DATA REQUESTS
     // =================================================================================
-    private void loadData() {
-        // Initialize quests
-        quests = new Array<>();
-        quests.add(new Quest("Play 5 hands", true));
-        quests.add(new Quest("Win with Flush", false));
-        quests.add(new Quest("Bet 5000 total", true));
-        quests.add(new Quest("Login 2 days", false));
-        quests.add(new Quest("Beat a bot", true));
-
-        // Generate dummy lobby list
-        refreshLobbyList();
-
-        // Generate leaderboard
-        refreshLeaderboard();
+    private void requestServerData() {
+        if (!networkService.isConnected()) {
+            logger.warn("Not connected to server, cannot request data");
+            return;
+        }
+        
+        PlayerProfile profile = sessionManager.getPlayerProfile();
+        int currentUserId = (profile != null) ? profile.id : -1;
+        
+        // Request leaderboard (top 50)
+        LeaderboardRequest leaderboardReq = new LeaderboardRequest();
+        leaderboardReq.limit = 50;
+        networkService.sendPacket(leaderboardReq);
+        
+        // Request room list (all modes initially)
+        requestRoomList();
+        
+        // Request match history (limit 5 most recent)
+        if (currentUserId > 0) {
+            MatchHistoryRequest historyReq = new MatchHistoryRequest(currentUserId, 5);
+            networkService.sendPacket(historyReq);
+            
+            // Request daily quests
+            if (networkService.isConnected()) {
+                GetQuestsRequest questsReq = new GetQuestsRequest();
+                networkService.sendPacket(questsReq);
+                logger.info("Sent GetQuestsRequest for user {}", currentUserId);
+            } else {
+                logger.warn("Cannot request quests: not connected to server");
+            }
+        } else {
+            logger.warn("Cannot request quests: invalid user ID");
+        }
+        
+        logger.info("Requested lobby data from server");
+    }
+    
+    /**
+     * Request room list from server (used for auto-refresh)
+     */
+    private void requestRoomList() {
+        if (!networkService.isConnected()) {
+            return;
+        }
+        
+        // Get selected mode from filter
+        String selectedMode = modeSelectBox != null ? modeSelectBox.getSelected() : "ALL";
+        com.mygame.shared.model.GameType gameType = null;
+        if (!"ALL".equals(selectedMode)) {
+            try {
+                gameType = com.mygame.shared.model.GameType.valueOf(selectedMode);
+            } catch (IllegalArgumentException e) {
+                logger.warn("Invalid game type: {}", selectedMode);
+            }
+        }
+        
+        ListRoomsRequest roomsReq = new ListRoomsRequest(gameType);
+        networkService.sendPacket(roomsReq);
     }
 
     private void refreshLobbyList() {
         if (lobbyListContent == null) return;
 
         lobbyListContent.clearChildren();
+        
+        String selectedMode = modeSelectBox != null ? modeSelectBox.getSelected() : "ALL";
+        
+        // Filter rooms based on selected mode
+        for (RoomInfo room : roomList) {
+            // Filter by mode
+            if (!selectedMode.equals("ALL")) {
+                if (room.getGameType() == null || 
+                    !room.getGameType().toString().equals(selectedMode)) {
+                    continue;
+                }
+            }
+            
+            // Only show waiting rooms
+            if (!"WAITING".equals(room.getStatus())) {
+                continue;
+            }
+            
+            // Skip full rooms
+            if (room.getCurrentPlayers() >= room.getMaxPlayers()) {
+                continue;
+            }
 
-        // Generate dummy lobbies - slightly bigger fonts but tighter columns
-        for (int i = 0; i < 20; i++) {
             Table row = new Table();
 
-            // Fonts: Slightly bigger (1.1f) but columns are tighter
-            Label roomLbl = new Label("R#" + (100+i), transparentStyle);
+            Label roomLbl = new Label("R#" + room.getRoomId(), transparentStyle);
             roomLbl.setFontScale(1.1f);
             roomLbl.setColor(Color.DARK_GRAY);
 
-            Label stakeLbl = new Label("$" + formatNumber((long)Math.pow(10, i%4 + 3)), transparentStyle);
+            // Show bet amount (default to 0 if not available)
+            long betAmount = 0; // RoomInfo doesn't have betAmount field yet
+            Label stakeLbl = new Label("$" + formatNumber(betAmount), transparentStyle);
             stakeLbl.setFontScale(1.1f);
             stakeLbl.setColor(new Color(0.6f, 0, 0, 1));
 
-            Label modeName = new Label(i % 2 == 0 ? "Poker" : "TienLen", transparentStyle);
+            String modeNameStr = (room.getGameType() != null) ? 
+                room.getGameType().toString() : "UNKNOWN";
+            Label modeName = new Label(modeNameStr, transparentStyle);
             modeName.setFontScale(1.1f);
             modeName.setColor(Color.NAVY);
 
             TextButton joinBtn = new TextButton("JOIN", skin, "blue_text_button");
 
-            final int roomIndex = i;
+            final int roomId = room.getRoomId();
             joinBtn.addListener(new ChangeListener() {
                 @Override
                 public void changed(ChangeEvent event, Actor actor) {
-                    logger.info("Joining room: {}", roomIndex);
-                    // TODO: Send join room request
+                    joinRoom(roomId);
                 }
             });
 
-            // COMPACT COLUMN LAYOUT - Total Width available ~650px
-            row.add(roomLbl).width(100).left();       // 100px
-            row.add(stakeLbl).width(120).left();      // 120px
-            row.add(modeName).width(250).center();    // 250px (Center Mode Name)
-            row.add(joinBtn).width(80).height(40).right(); // 80px
+            row.add(roomLbl).width(100).left();
+            row.add(stakeLbl).width(120).left();
+            row.add(modeName).width(250).center();
+            row.add(joinBtn).width(80).height(40).right();
 
             lobbyListContent.add(row).width(600).height(50).padBottom(5).row();
+        }
+        
+        // Show message if no rooms
+        if (lobbyListContent.getChildren().size == 0) {
+            Label emptyLabel = new Label("No rooms available", transparentStyle);
+            emptyLabel.setColor(Color.GRAY);
+            emptyLabel.setFontScale(1.0f);
+            lobbyListContent.add(emptyLabel).pad(20);
         }
     }
 
@@ -499,34 +608,411 @@ public class LobbyController implements ViewRenderer {
 
         leaderboardContent.clearChildren();
 
-        for (int i = 1; i <= 50; i++) {
-            String name = (i == 1) ? "KingOfPoker" : "Player_" + i;
-            long score = 90000000L / i;
-
+        int rank = 1;
+        for (LeaderboardEntry entry : leaderboardEntries) {
             Table row = new Table();
 
-            Label rankLbl = new Label(i + ".", transparentStyle);
+            Label rankLbl = new Label(rank + ".", transparentStyle);
             rankLbl.setFontScale(1.1f);
 
-            Label nameLbl = new Label(name, transparentStyle);
+            Label nameLbl = new Label(entry.username != null ? entry.username : "Unknown", transparentStyle);
             nameLbl.setEllipsis(true);
             nameLbl.setFontScale(1.1f);
 
-            Label creditLbl = new Label(formatNumber(score), goldStyle);
+            Label creditLbl = new Label(formatNumber(entry.credits), goldStyle);
             creditLbl.setAlignment(Align.right);
-            creditLbl.setFontScale(1.0f); // Slightly smaller for big numbers
+            creditLbl.setFontScale(1.0f);
 
-            // STRICT COLUMNS
             row.add(rankLbl).width(40).left();
             row.add(nameLbl).width(180).left().padRight(5);
             row.add(creditLbl).width(90).right();
 
             leaderboardContent.add(row).width(300).height(20).row();
+            rank++;
+        }
+        
+        if (leaderboardEntries.isEmpty()) {
+            Label emptyLabel = new Label("No data", transparentStyle);
+            emptyLabel.setColor(Color.GRAY);
+            leaderboardContent.add(emptyLabel).pad(20);
         }
     }
 
     private void setupNetworkListener() {
-        // TODO: Add network packet listeners for room updates, leaderboard updates, etc.
+        logger.info("Setting up network listener in LobbyController");
+        networkService.addPacketListener(packet -> {
+            Gdx.app.postRunnable(() -> {
+                // Log all received packets for debugging
+                Gdx.app.log("LobbyController", "Packet received: " + packet.getClass().getSimpleName());
+                
+                if (packet instanceof LeaderboardResponse) {
+                    handleLeaderboardResponse((LeaderboardResponse) packet);
+                } else if (packet instanceof ListRoomsResponse) {
+                    handleRoomsResponse((ListRoomsResponse) packet);
+                } else if (packet instanceof MatchHistoryResponse) {
+                    handleMatchHistoryResponse((MatchHistoryResponse) packet);
+                } else if (packet instanceof DailyRewardResponse) {
+                    handleDailyRewardResponse((DailyRewardResponse) packet);
+                } else if (packet instanceof GetQuestsResponse) {
+                    handleQuestsResponse((GetQuestsResponse) packet);
+                } else if (packet instanceof ClaimQuestResponse) {
+                    handleClaimQuestResponse((ClaimQuestResponse) packet);
+                } else if (packet instanceof JoinRoomResponse) {
+                    handleJoinRoomResponse((JoinRoomResponse) packet);
+                } else if (packet instanceof CreateRoomResponse) {
+                    Gdx.app.log("LobbyController", "CreateRoomResponse detected in listener, calling handler");
+                    handleCreateRoomResponse((CreateRoomResponse) packet);
+                }
+            });
+        });
+        logger.info("Network listener setup complete");
+    }
+    
+    private void handleLeaderboardResponse(LeaderboardResponse response) {
+        if (response.entries != null) {
+            leaderboardEntries.clear();
+            leaderboardEntries.addAll(response.entries);
+            refreshLeaderboard();
+            logger.info("Received {} leaderboard entries", leaderboardEntries.size());
+        }
+    }
+    
+    private void handleRoomsResponse(ListRoomsResponse response) {
+        if (response.getRooms() != null) {
+            roomList.clear();
+            roomList.addAll(response.getRooms());
+            refreshLobbyList();
+            logger.info("Received {} rooms", roomList.size());
+        }
+    }
+    
+    private void handleMatchHistoryResponse(MatchHistoryResponse response) {
+        if (response.entries != null) {
+            matchHistoryEntries.clear();
+            matchHistoryEntries.addAll(response.entries);
+            logger.info("Received {} match history entries", matchHistoryEntries.size());
+        }
+    }
+    
+    private void handleDailyRewardResponse(DailyRewardResponse response) {
+        // Daily reward is now handled by quest system
+        logger.debug("Daily reward response received: {}", response.success);
+    }
+    
+    private void handleQuestsResponse(GetQuestsResponse response) {
+        if (response.success && response.quests != null && !response.quests.isEmpty()) {
+            quests.clear();
+            quests.addAll(response.quests);
+            // Refresh quest table UI
+            refreshQuestTable();
+            logger.info("Received {} quests", quests.size());
+        } else {
+            String errorMsg = response.errorMessage != null ? response.errorMessage : "Unknown error";
+            logger.warn("Failed to get quests: {}", errorMsg);
+            
+            // Show error message in quest table
+            if (questListContent != null) {
+                questListContent.clearChildren();
+                
+                Label errorTitle = new Label("Failed to load quests", transparentStyle);
+                errorTitle.setColor(Color.RED);
+                errorTitle.setFontScale(1.0f);
+                questListContent.add(errorTitle).padBottom(10).row();
+                
+                Label errorDetail = new Label(errorMsg, transparentStyle);
+                errorDetail.setColor(Color.ORANGE);
+                errorDetail.setFontScale(0.8f);
+                errorDetail.setWrap(true);
+                questListContent.add(errorDetail).width(250).pad(10);
+            }
+        }
+    }
+    
+    private void handleClaimQuestResponse(ClaimQuestResponse response) {
+        if (response.success) {
+            logger.info("Quest claimed! Awarded {} credits", response.creditsAwarded);
+            // Update credits display
+            PlayerProfile profile = sessionManager.getPlayerProfile();
+            if (profile != null && creditLabel != null) {
+                profile.credits = response.newTotalCredits;
+                creditLabel.setText(formatNumber(response.newTotalCredits));
+            }
+            // Refresh quests to update UI
+            refreshQuestTable();
+            GetQuestsRequest questsReq = new GetQuestsRequest();
+            networkService.sendPacket(questsReq);
+        } else {
+            logger.warn("Failed to claim quest: {}", response.errorMessage);
+        }
+    }
+    
+    private void handleJoinRoomResponse(JoinRoomResponse response) {
+        if (response.isSuccess() && response.getRoomInfo() != null) {
+            logger.info("Joined room successfully: {}", response.getRoomInfo().getRoomId());
+            sessionManager.setPendingRoomInfo(response.getRoomInfo());
+            // Navigate to room lobby (you'll need to implement RoomLobbyController)
+            // interfaceService.show(RoomLobbyController.class);
+            logger.info("Room joined: {}", response.getRoomInfo().getRoomName());
+        } else {
+            logger.warn("Failed to join room: {}", response.getErrorMessage());
+            // Could show error dialog here
+        }
+    }
+    
+    private void handleCreateRoomResponse(CreateRoomResponse response) {
+        Gdx.app.log("LobbyController", "Received CreateRoomResponse - success: " + response.isSuccess());
+        
+        if (response.isSuccess() && response.getRoomInfo() != null) {
+            logger.info("Room created successfully: {}", response.getRoomInfo().getRoomId());
+            Gdx.app.log("LobbyController", "Room created! ID: " + response.getRoomInfo().getRoomId() + ", Navigating to game...");
+            
+            sessionManager.setPendingRoomInfo(response.getRoomInfo());
+            
+            // Navigate directly to game screen based on game type
+            com.mygame.shared.model.GameType gameType = response.getRoomInfo().getGameType();
+            logger.info("Game type: {}", gameType);
+            Gdx.app.log("LobbyController", "Game type: " + gameType);
+            
+            try {
+                if (gameType == com.mygame.shared.model.GameType.POKER) {
+                    logger.info("Navigating to PokerGameControllerJava");
+                    Gdx.app.log("LobbyController", "Navigating to PokerGameControllerJava");
+                    interfaceService.show(PokerGameControllerJava.class);
+                } else if (gameType == com.mygame.shared.model.GameType.TIENLEN) {
+                    logger.info("Navigating to TienLenGameController");
+                    Gdx.app.log("LobbyController", "Navigating to TienLenGameController");
+                    interfaceService.show(TienLenGameController.class);
+                } else {
+                    logger.warn("Unknown game type: {}", gameType);
+                    Gdx.app.log("LobbyController", "ERROR: Unknown game type: " + gameType);
+                }
+            } catch (Exception e) {
+                logger.error("Error navigating to game screen: {}", e.getMessage(), e);
+                Gdx.app.log("LobbyController", "ERROR navigating: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } else {
+            String errorMsg = response.getErrorMessage() != null ? response.getErrorMessage() : "Unknown error";
+            logger.error("Failed to create room: {}", errorMsg);
+            Gdx.app.log("LobbyController", "Create room failed: " + errorMsg);
+            // Could show error dialog here
+        }
+    }
+    
+    // =================================================================================
+    // ACTION METHODS
+    // =================================================================================
+    private void joinRoom(int roomId) {
+        JoinRoomRequest request = new JoinRoomRequest(roomId);
+        networkService.sendPacket(request);
+        logger.info("Joining room: {}", roomId);
+    }
+    
+    private void claimQuest(int questId) {
+        ClaimQuestRequest request = new ClaimQuestRequest(questId);
+        networkService.sendPacket(request);
+        logger.info("Claiming quest: {}", questId);
+    }
+    
+    private void showCreateRoomDialog() {
+        // Simple dialog to create room
+        Window.WindowStyle winStyle = new Window.WindowStyle(
+            skin.getFont("Blue_font"),
+            Color.WHITE,
+            skin.getDrawable("panel1")
+        );
+        
+        final Dialog dialog = new Dialog("Create Room", winStyle);
+        dialog.pad(40);
+        
+        Table content = dialog.getContentTable();
+        
+        // Room Name
+        Label nameLabel = new Label("Room Name:", transparentStyle);
+        nameLabel.setFontScale(1.0f);
+        content.add(nameLabel).left().padBottom(10).row();
+        
+        final TextField nameField = new TextField("", skin, "text_field_login");
+        nameField.setMessageText("Enter room name");
+        content.add(nameField).width(300).height(40).padBottom(15).row();
+        
+        // Game Mode
+        Label modeLabel = new Label("Mode:", transparentStyle);
+        modeLabel.setFontScale(1.0f);
+        content.add(modeLabel).left().padBottom(10).row();
+        
+        final SelectBox<String> modeBox = new SelectBox<>(skin, "default");
+        modeBox.setItems("POKER", "TIENLEN");
+        content.add(modeBox).width(300).height(40).padBottom(20).row();
+        
+        // Buttons
+        Table buttonTable = new Table();
+        
+        TextButton createBtn = new TextButton("CREATE", skin, "blue_text_button");
+        createBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                Gdx.app.log("LobbyController", "Create button clicked!");
+                logger.info("Create button clicked in showCreateRoomDialog");
+                
+                String roomName = nameField.getText().trim();
+                if (roomName.isEmpty()) {
+                    roomName = "Room " + System.currentTimeMillis() % 10000;
+                }
+                
+                String modeStr = modeBox.getSelected();
+                GameType gameType = GameType.valueOf(modeStr);
+                
+                CreateRoomRequest request = new CreateRoomRequest();
+                request.setRoomName(roomName);
+                request.setGameType(gameType);
+                request.setMaxPlayers(gameType == GameType.POKER ? 5 : 4);
+                
+                logger.info("Sending CreateRoomRequest: name={}, type={}, maxPlayers={}", 
+                           roomName, gameType, request.getMaxPlayers());
+                
+                networkService.sendPacket(request);
+                dialog.hide();
+                logger.info("CreateRoomRequest sent successfully");
+            }
+        });
+        
+        TextButton cancelBtn = new TextButton("CANCEL", skin, "blue_text_button");
+        cancelBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                dialog.hide();
+            }
+        });
+        
+        buttonTable.add(createBtn).width(120).height(50).padRight(10);
+        buttonTable.add(cancelBtn).width(120).height(50);
+        
+        content.add(buttonTable);
+        
+        dialog.show(stage);
+    }
+    
+    private void showMatchHistoryDialog() {
+        // Request fresh data
+        PlayerProfile profile = sessionManager.getPlayerProfile();
+        int currentUserId = (profile != null) ? profile.id : -1;
+        if (currentUserId > 0) {
+            MatchHistoryRequest historyReq = new MatchHistoryRequest(currentUserId, 5);
+            networkService.sendPacket(historyReq);
+        }
+        
+        // Create dialog
+        Window.WindowStyle winStyle = new Window.WindowStyle(
+            skin.getFont("Blue_font"),
+            Color.WHITE,
+            skin.getDrawable("panel1")
+        );
+        
+        final Dialog dialog = new Dialog("Match History", winStyle);
+        dialog.pad(40);
+        
+        Table content = dialog.getContentTable();
+        
+        // Title
+        Label title = new Label("RECENT MATCHES", transparentStyle);
+        title.setFontScale(1.5f);
+        content.add(title).padBottom(20).row();
+        
+        // History table
+        Table historyTable = new Table();
+        historyTable.top().left();
+        
+        if (matchHistoryEntries.isEmpty()) {
+            Label emptyLabel = new Label("No match history", transparentStyle);
+            emptyLabel.setColor(Color.GRAY);
+            emptyLabel.setFontScale(1.0f);
+            historyTable.add(emptyLabel).pad(20);
+        } else {
+            // Header row
+            Table headerRow = new Table();
+            Label resultHeader = new Label("Result", transparentStyle);
+            resultHeader.setFontScale(1.0f);
+            resultHeader.setColor(Color.BLACK);
+            Label modeHeader = new Label("Mode", transparentStyle);
+            modeHeader.setFontScale(1.0f);
+            modeHeader.setColor(Color.BLACK);
+            Label creditsHeader = new Label("Credits", transparentStyle);
+            creditsHeader.setFontScale(1.0f);
+            creditsHeader.setColor(Color.BLACK);
+            Label timeHeader = new Label("Time", transparentStyle);
+            timeHeader.setFontScale(1.0f);
+            timeHeader.setColor(Color.BLACK);
+            
+            headerRow.add(resultHeader).width(100).padRight(10);
+            headerRow.add(modeHeader).width(120).padRight(10);
+            headerRow.add(creditsHeader).width(100).padRight(10);
+            headerRow.add(timeHeader).width(150);
+            historyTable.add(headerRow).padBottom(10).row();
+            
+            // Data rows
+            for (com.mygame.shared.model.MatchHistoryEntry entry : matchHistoryEntries) {
+                Table row = new Table();
+                
+                // Result (Win/Lose) - Green for Win, Red for Lose
+                String resultText = entry.result != null ? entry.result.toUpperCase() : "UNKNOWN";
+                Label resultLabel = new Label(resultText, transparentStyle);
+                resultLabel.setFontScale(0.9f);
+                if ("WIN".equalsIgnoreCase(resultText) || entry.creditsChange > 0) {
+                    resultLabel.setColor(Color.GREEN);
+                } else if ("LOSE".equalsIgnoreCase(resultText) || entry.creditsChange < 0) {
+                    resultLabel.setColor(Color.RED);
+                } else {
+                    resultLabel.setColor(Color.WHITE);
+                }
+                
+                // Mode
+                String modeText = (entry.gameType != null ? entry.gameType : "UNKNOWN") + 
+                                 (entry.matchMode != null ? " - " + entry.matchMode : "");
+                Label modeLabel = new Label(modeText, transparentStyle);
+                modeLabel.setFontScale(0.9f);
+                modeLabel.setColor(Color.WHITE);
+                
+                // Credits change - Green for positive, Red for negative
+                String creditsText = (entry.creditsChange >= 0 ? "+" : "") + formatNumber(entry.creditsChange);
+                Label creditsLabel = new Label(creditsText, transparentStyle);
+                creditsLabel.setFontScale(0.9f);
+                creditsLabel.setColor(entry.creditsChange >= 0 ? Color.GREEN : Color.RED);
+                
+                // Time
+                String timeText = "N/A";
+                if (entry.timestamp != null) {
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("MM/dd HH:mm");
+                    timeText = sdf.format(entry.timestamp);
+                }
+                Label timeLabel = new Label(timeText, transparentStyle);
+                timeLabel.setFontScale(0.9f);
+                timeLabel.setColor(Color.GRAY);
+                
+                row.add(resultLabel).width(100).padRight(10).left();
+                row.add(modeLabel).width(120).padRight(10).left();
+                row.add(creditsLabel).width(100).padRight(10).right();
+                row.add(timeLabel).width(150).left();
+                
+                historyTable.add(row).padBottom(5).row();
+            }
+        }
+        
+        ScrollPane scroll = new ScrollPane(historyTable, skin);
+        scroll.setScrollingDisabled(true, false);
+        content.add(scroll).width(500).height(300).padBottom(20).row();
+        
+        // Close button
+        TextButton closeBtn = new TextButton("CLOSE", skin, "blue_text_button");
+        closeBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                dialog.hide();
+            }
+        });
+        content.add(closeBtn).width(150).height(40);
+        
+        dialog.show(stage);
     }
 
     // =================================================================================
@@ -539,15 +1025,6 @@ public class LobbyController implements ViewRenderer {
         return String.format(Locale.US, "%.2e", (double)number);
     }
 
-    // Simple POJO for Quest logic
-    private static class Quest {
-        String description;
-        boolean isCompleted;
-        Quest(String d, boolean c) {
-            description = d;
-            isCompleted = c;
-        }
-    }
 
 
     public void resize(int width, int height) {

@@ -85,6 +85,14 @@ public class MatchHistoryDAO {
                 
                 matches.add(entry);
             }
+        } catch (SQLException e) {
+            try {
+                dbManager.getConnection().rollback();
+            } catch (SQLException rollbackEx) {
+                logger.error("Lỗi rollback: {}", rollbackEx.getMessage());
+            }
+            logger.error("Lỗi khi lấy match history: {}", e.getMessage(), e);
+            throw e;
         }
         
         return matches;

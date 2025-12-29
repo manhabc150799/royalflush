@@ -47,6 +47,11 @@ public class LeaderboardDAO {
                 entries.add(entry);
             }
         } catch (SQLException e) {
+            try {
+                dbManager.getConnection().rollback();
+            } catch (SQLException rollbackEx) {
+                logger.error("Lỗi rollback: {}", rollbackEx.getMessage());
+            }
             logger.error("Lỗi khi lấy leaderboard: {}", e.getMessage(), e);
             throw e;
         }
@@ -70,6 +75,14 @@ public class LeaderboardDAO {
             if (rs.next()) {
                 return rs.getInt("rank");
             }
+        } catch (SQLException e) {
+            try {
+                dbManager.getConnection().rollback();
+            } catch (SQLException rollbackEx) {
+                logger.error("Lỗi rollback: {}", rollbackEx.getMessage());
+            }
+            logger.error("Lỗi khi lấy player rank: {}", e.getMessage(), e);
+            throw e;
         }
         
         return -1; // Không tìm thấy

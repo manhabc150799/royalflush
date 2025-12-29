@@ -21,6 +21,7 @@ public class ServerListener {
     private final LeaderboardHandler leaderboardHandler;
     private final MatchHistoryHandler matchHistoryHandler;
     private final DailyRewardHandler dailyRewardHandler;
+    private final QuestHandler questHandler;
     private final com.mygame.server.handlers.RoomHandler roomHandler;
     private final GameSessionManager gameSessionManager;
     
@@ -37,6 +38,7 @@ public class ServerListener {
         this.leaderboardHandler = new LeaderboardHandler(dbManager);
         this.matchHistoryHandler = new MatchHistoryHandler(dbManager);
         this.dailyRewardHandler = new DailyRewardHandler(dbManager);
+        this.questHandler = new QuestHandler(dbManager, connectionToUser);
         this.roomHandler = new com.mygame.server.handlers.RoomHandler(dbManager);
         this.gameSessionManager = new GameSessionManager(dbManager, roomHandler.getRoomManager());
         
@@ -81,6 +83,10 @@ public class ServerListener {
                     matchHistoryHandler.handle(connection, (MatchHistoryRequest) object);
                 } else if (object instanceof DailyRewardRequest) {
                     dailyRewardHandler.handle(connection, (DailyRewardRequest) object);
+                } else if (object instanceof GetQuestsRequest) {
+                    questHandler.handleGetQuests(connection, (GetQuestsRequest) object);
+                } else if (object instanceof ClaimQuestRequest) {
+                    questHandler.handleClaimQuest(connection, (ClaimQuestRequest) object);
                 } else if (object instanceof CreateRoomRequest) {
                     roomHandler.handleCreateRoom(connection, (CreateRoomRequest) object);
                 } else if (object instanceof JoinRoomRequest) {

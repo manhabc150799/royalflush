@@ -48,6 +48,14 @@ public class DailyRewardDAO {
                 // Nếu lastRewardTime + 24h < now thì có thể nhận
                 return lastRewardTime.plusHours(24).isBefore(now);
             }
+        } catch (SQLException e) {
+            try {
+                dbManager.getConnection().rollback();
+            } catch (SQLException rollbackEx) {
+                logger.error("Lỗi rollback: {}", rollbackEx.getMessage());
+            }
+            logger.error("Lỗi khi kiểm tra daily reward: {}", e.getMessage(), e);
+            throw e;
         }
         
         return false;
@@ -110,6 +118,14 @@ public class DailyRewardDAO {
                 // Thời gian nhận tiếp theo = lastRewardTime + 24h
                 return lastRewardTime.plusHours(24);
             }
+        } catch (SQLException e) {
+            try {
+                dbManager.getConnection().rollback();
+            } catch (SQLException rollbackEx) {
+                logger.error("Lỗi rollback: {}", rollbackEx.getMessage());
+            }
+            logger.error("Lỗi khi lấy next reward time: {}", e.getMessage(), e);
+            throw e;
         }
         
         return LocalDateTime.now();

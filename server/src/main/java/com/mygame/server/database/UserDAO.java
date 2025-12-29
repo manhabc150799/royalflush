@@ -32,7 +32,7 @@ public class UserDAO {
         String passwordHash = BCrypt.hashpw(password, BCrypt.gensalt());
         
         String sql = "INSERT INTO users (username, password_hash, credits, created_at) " +
-                     "VALUES (?, ?, 1000, CURRENT_TIMESTAMP) RETURNING user_id";
+                     "VALUES (?, ?, 50000, CURRENT_TIMESTAMP) RETURNING user_id";
         
         try (PreparedStatement pstmt = dbManager.getConnection().prepareStatement(sql)) {
             pstmt.setString(1, username);

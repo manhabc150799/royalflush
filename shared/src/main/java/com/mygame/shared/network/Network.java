@@ -23,7 +23,9 @@ public class Network {
         kryo.register(LeaderboardEntry.class);
         kryo.register(MatchHistoryEntry.class);
         kryo.register(com.mygame.shared.model.RoomInfo.class);
+        kryo.register(com.mygame.shared.model.Quest.class);
         kryo.register(java.time.LocalDateTime.class);
+        kryo.register(java.util.ArrayList.class);
         
         // Register authentication packets
         kryo.register(LoginRequest.class);
@@ -38,6 +40,10 @@ public class Network {
         kryo.register(MatchHistoryResponse.class);
         kryo.register(DailyRewardRequest.class);
         kryo.register(DailyRewardResponse.class);
+        kryo.register(GetQuestsRequest.class);
+        kryo.register(GetQuestsResponse.class);
+        kryo.register(ClaimQuestRequest.class);
+        kryo.register(ClaimQuestResponse.class);
         
         // Register room packets
         kryo.register(CreateRoomRequest.class);

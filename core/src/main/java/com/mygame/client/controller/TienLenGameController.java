@@ -1,324 +1,247 @@
 package com.mygame.client.controller;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.*;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.scenes.scene2d.actions.Actions;
-import com.badlogic.gdx.scenes.scene2d.ui.Image;
-import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.Viewport;
 import com.github.czyzby.autumn.annotation.Inject;
 import com.github.czyzby.autumn.mvc.component.ui.InterfaceService;
 import com.github.czyzby.autumn.mvc.component.ui.controller.ViewRenderer;
 import com.github.czyzby.autumn.mvc.stereotype.View;
-import com.github.czyzby.autumn.mvc.stereotype.ViewActionContainer;
-import com.github.czyzby.lml.annotation.LmlAction;
-import com.github.czyzby.lml.parser.action.ActionContainer;
-import com.github.czyzby.lml.annotation.LmlActor;
-import com.github.czyzby.lml.annotation.LmlAfter;
-import com.kotcrab.vis.ui.widget.VisTable;
-import com.kotcrab.vis.ui.widget.VisTextButton;
+import com.mygame.client.RoyalFlushG;
+import com.mygame.client.service.NetworkService;
 import com.mygame.client.service.SessionManager;
-import com.mygame.shared.game.card.Card;
-import com.mygame.shared.game.card.Deck;
-import com.mygame.shared.game.tienlen.CardCollection;
-import com.mygame.shared.game.tienlen.TienLenCombinationType;
-import com.mygame.shared.game.tienlen.TienLenGameState;
+import com.mygame.client.ui.UISkinManager;
+import com.mygame.client.ui.UIHelper;
+import com.mygame.shared.model.RoomInfo;
+import com.mygame.shared.network.packets.LeaveRoomRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
-
 /**
- * Controller cho Tiến Lên game
+ * TienLenGameController - Minimal implementation showing only background + pause button
+ * 
+ * @author Royal FlushG Team
  */
 @View(id = "tienlenGame", value = "ui/templates/tienlen_game.lml")
-@ViewActionContainer("tienlen")
-public class TienLenGameController implements ViewRenderer, ActionContainer {
+public class TienLenGameController implements ViewRenderer {
     private static final Logger logger = LoggerFactory.getLogger(TienLenGameController.class);
     
     @Inject private SessionManager sessionManager;
     @Inject private InterfaceService interfaceService;
+    @Inject private NetworkService networkService;
     
-    @LmlActor("playerCardsTable") private VisTable playerCardsTable;
-    @LmlActor("playedCardsTable") private VisTable playedCardsTable;
-    @LmlActor("playButton") private VisTextButton playButton;
-    @LmlActor("skipButton") private VisTextButton skipButton;
-    @LmlActor("sortButton") private VisTextButton sortButton;
-    
-    private TienLenGameState gameState;
-    private Deck deck;
-    private Map<String, Texture> textureCache = new HashMap<>();
-    private List<Card> playerHand;
-    private Set<Card> selectedCards = new HashSet<>();
-    private List<Card> currentTrick = new ArrayList<>();
-    
-    @LmlAfter
-    public void initialize() {
-        logger.info("TienLenGameController đã khởi tạo");
-        
-        // Start singleplayer game
-        startSingleplayerGame();
-    }
-    
-    /**
-     * Bắt đầu singleplayer game
-     */
-    private void startSingleplayerGame() {
-        logger.info("Bắt đầu singleplayer tien len game");
-        
-        // Tạo deck và xáo bài
-        deck = new Deck();
-        deck.shuffle();
-        
-        // Tạo game state với 4 players
-        List<Integer> playerIds = Arrays.asList(
-            sessionManager.getCurrentUserId(),
-            1001, 1002, 1003 // Bot IDs
-        );
-        gameState = new TienLenGameState(playerIds);
-        
-        // Deal 13 cards cho mỗi player
-        for (Integer playerId : playerIds) {
-            List<Card> hand = deck.deal(13);
-            gameState.dealHand(playerId, hand);
-            
-            if (playerId == sessionManager.getCurrentUserId()) {
-                playerHand = new ArrayList<>(hand);
-            }
+    private Stage stage;
+    private Viewport viewport;
+    private Skin skin;
+    private Image backgroundImage;
+    private Button pauseButton;
+    private boolean initialized = false;
+    private int currentRoomId = -1;
+
+    @Override
+    public void render(Stage stage, float delta) {
+        if (!initialized) {
+            this.stage = stage;
+            initialize();
+            initialized = true;
         }
         
-        // Hiển thị player hand
-        displayPlayerHand();
+        // Clear screen
+        ScreenUtils.clear(0f, 0f, 0f, 1f);
         
-        logger.info("Đã deal cards cho tất cả players");
+        // Update viewport if window resize (use stage's viewport)
+        if (this.stage != null && this.stage.getViewport() != null) {
+            this.stage.getViewport().update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
+        }
+        
+        // Update and render stage
+        if (this.stage != null) {
+            this.stage.act(delta);
+            this.stage.draw();
+        }
     }
     
-    /**
-     * Hiển thị player hand với arc layout
-     */
-    private void displayPlayerHand() {
-        if (playerCardsTable == null || playerHand == null) {
+    private void initialize() {
+        logger.info("Initializing TienLenGameController...");
+        Gdx.app.log("TienLenGameController", "initialize() called");
+        
+        // Get room ID from session manager
+        RoomInfo roomInfo = sessionManager.getAndClearPendingRoomInfo();
+        if (roomInfo != null) {
+            currentRoomId = roomInfo.getRoomId();
+            logger.info("Entered room: {}", currentRoomId);
+            Gdx.app.log("TienLenGameController", "Room ID: " + currentRoomId);
+        } else {
+            logger.warn("No room info found in session manager");
+            Gdx.app.log("TienLenGameController", "WARNING: No room info found");
+        }
+        
+        // Use stage's viewport (don't create new one)
+        if (stage != null) {
+            viewport = stage.getViewport();
+        } else {
+            viewport = new FitViewport(RoyalFlushG.WIDTH, RoyalFlushG.HEIGHT);
+        }
+        
+        // Set input processor
+        Gdx.input.setInputProcessor(stage);
+        
+        // Get skin
+        skin = UISkinManager.getInstance().getSkin();
+        if (skin == null) {
+            logger.error("Failed to load UI skin");
+            Gdx.app.log("TienLenGameController", "ERROR: Failed to load skin");
             return;
         }
         
-        playerCardsTable.clearChildren();
+        // Create background
+        createBackground();
         
-        // Sort hand
-        playerHand.sort((a, b) -> Integer.compare(
-            a.getRankValueForTienLen(),
-            b.getRankValueForTienLen()
-        ));
+        // Create pause button (top-right)
+        createPauseButton();
         
-        for (Card card : playerHand) {
-            CardActor cardActor = createCardActor(card);
-            playerCardsTable.add(cardActor).width(60).height(90).pad(2);
+        logger.info("TienLenGameController initialized successfully");
+        Gdx.app.log("TienLenGameController", "Initialization complete");
+    }
+    
+    /**
+     * Create background image
+     */
+    private void createBackground() {
+        try {
+            // Try TienLen background, fallback to poker if not available
+            backgroundImage = UIHelper.createBackground("ui/Background_tienlen.png");
+            if (backgroundImage == null) {
+                logger.warn("Background_tienlen.png not found, using poker background");
+                backgroundImage = UIHelper.createBackground("ui/Background_poker.png");
+            }
+            if (backgroundImage != null) {
+                backgroundImage.setFillParent(true);
+                stage.addActor(backgroundImage);
+                logger.info("Background loaded successfully");
+            } else {
+                logger.error("Failed to create background image");
+            }
+        } catch (Exception e) {
+            logger.error("Failed to load background: {}", e.getMessage(), e);
         }
     }
     
     /**
-     * Tạo CardActor với hover và click effects
+     * Create pause button (top-right corner)
      */
-    private CardActor createCardActor(Card card) {
-        Texture texture = getTexture(card.getAssetPath());
-        CardActor actor = new CardActor(texture, card);
-        actor.setSize(60, 90);
+    private void createPauseButton() {
+        // Try to use pause_button style from skin
+        try {
+            pauseButton = new Button(skin, "pause_button");
+        } catch (Exception e) {
+            // Fallback: create simple text button
+            logger.warn("pause_button style not found, creating text button: {}", e.getMessage());
+            TextButton.TextButtonStyle btnStyle = new TextButton.TextButtonStyle();
+            btnStyle.font = skin.getFont("Blue_font");
+            btnStyle.fontColor = Color.WHITE;
+            btnStyle.up = skin.getDrawable("panel1");
+            pauseButton = new TextButton("||", btnStyle);
+        }
         
-        // Hover effect: nảy lên
-        actor.addListener(new ClickListener() {
+        pauseButton.setSize(60, 60);
+        pauseButton.setPosition(
+            Gdx.graphics.getWidth() - pauseButton.getWidth() - 25,
+            Gdx.graphics.getHeight() - pauseButton.getHeight() - 25
+        );
+        
+        pauseButton.addListener(new ChangeListener() {
             @Override
-            public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
-                actor.addAction(Actions.moveBy(0, 20, 0.2f));
-            }
-            
-            @Override
-            public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
-                if (!selectedCards.contains(card)) {
-                    actor.addAction(Actions.moveBy(0, -20, 0.2f));
-                }
-            }
-            
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                toggleCardSelection(card, actor);
+            public void changed(ChangeEvent event, Actor actor) {
+                logger.info("Pause button clicked");
+                showPauseDialog();
             }
         });
         
-        return actor;
+        stage.addActor(pauseButton);
+        logger.info("Pause button created");
     }
     
     /**
-     * Toggle card selection
+     * Show pause menu dialog
      */
-    private void toggleCardSelection(Card card, CardActor actor) {
-        if (selectedCards.contains(card)) {
-            selectedCards.remove(card);
-            actor.addAction(Actions.moveBy(0, -20, 0.2f));
-            actor.setSelected(false);
-        } else {
-            selectedCards.add(card);
-            actor.addAction(Actions.moveBy(0, 20, 0.2f));
-            actor.setSelected(true);
-        }
-        logger.debug("Selected cards: {}", selectedCards.size());
-    }
-    
-    /**
-     * Lấy texture từ cache
-     */
-    private Texture getTexture(String assetPath) {
-        if (textureCache.containsKey(assetPath)) {
-            return textureCache.get(assetPath);
-        }
+    private void showPauseDialog() {
+        Window.WindowStyle winStyle = new Window.WindowStyle(
+            skin.getFont("Blue_font"),
+            Color.WHITE,
+            skin.getDrawable("panel1")
+        );
         
-        Texture texture = new Texture(Gdx.files.internal(assetPath));
-        textureCache.put(assetPath, texture);
-        return texture;
-    }
-    
-    /**
-     * Action: Play selected cards
-     */
-    @LmlAction("playCards")
-    public void playCards() {
-        if (selectedCards.isEmpty()) {
-            logger.warn("Không có card nào được chọn");
-            return;
-        }
+        final Dialog dialog = new Dialog("", winStyle);
+        dialog.pad(40);
         
-        List<Card> cardsToPlay = new ArrayList<>(selectedCards);
+        Table content = dialog.getContentTable();
         
-        // Validate combination
-        TienLenCombinationType type = CardCollection.detectCombination(cardsToPlay);
-        if (type == TienLenCombinationType.INVALID) {
-            logger.warn("Combination không hợp lệ");
-            return;
-        }
+        // Title
+        Label.LabelStyle titleStyle = new Label.LabelStyle();
+        titleStyle.font = skin.getFont("Blue_font");
+        titleStyle.fontColor = new Color(0, 0.96f, 1, 1); // Cyan
+        Label title = new Label("PAUSED", titleStyle);
+        title.setFontScale(1.5f);
+        content.add(title).padBottom(30).row();
         
-        // Check có thể chặt được không
-        if (!currentTrick.isEmpty() && gameState.getCurrentTrickType() != null) {
-            if (!CardCollection.canBeat(
-                gameState.getCurrentTrickType(),
-                currentTrick,
-                type,
-                cardsToPlay
-            )) {
-                logger.warn("Không thể chặt được bài trên bàn");
-                return;
+        // Exit Lobby Button
+        TextButton exitBtn = new TextButton("EXIT LOBBY", skin, "blue_text_button");
+        exitBtn.getLabel().setFontScale(1.2f);
+        exitBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                logger.info("Exit Lobby clicked");
+                exitLobby();
+                dialog.hide();
             }
+        });
+        content.add(exitBtn).width(200).height(50).padBottom(15).row();
+        
+        // Resume Button
+        TextButton resumeBtn = new TextButton("RESUME", skin, "blue_text_button");
+        resumeBtn.getLabel().setFontScale(1.2f);
+        resumeBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                dialog.hide();
+            }
+        });
+        content.add(resumeBtn).width(200).height(50);
+        
+        dialog.show(stage);
+    }
+    
+    /**
+     * Exit lobby - Send LeaveRoomRequest and navigate back to LobbyController
+     */
+    private void exitLobby() {
+        if (currentRoomId > 0) {
+            LeaveRoomRequest request = new LeaveRoomRequest(currentRoomId);
+            networkService.sendPacket(request);
+            logger.info("Sent LeaveRoomRequest for room: {}", currentRoomId);
+        } else {
+            logger.warn("No room ID found, navigating to lobby anyway");
         }
         
-        // Play cards
-        if (gameState.playCards(sessionManager.getCurrentUserId(), cardsToPlay)) {
-            // Remove from hand
-            playerHand.removeAll(cardsToPlay);
-            selectedCards.clear();
-            
-            // Update current trick
-            currentTrick = new ArrayList<>(cardsToPlay);
-            
-            // Display played cards
-            displayPlayedCards(cardsToPlay);
-            
-            // Update player hand display
-            displayPlayerHand();
-            
-            // Next turn
-            gameState.nextTurn();
-            
-            logger.info("Đã đánh {} cards", cardsToPlay.size());
-        }
+        // Navigate back to lobby
+        interfaceService.show(LobbyController.class);
     }
     
     /**
-     * Action: Skip turn
-     */
-    @LmlAction("skipTurn")
-    public void skipTurn() {
-        gameState.skipTurn(sessionManager.getCurrentUserId());
-        gameState.nextTurn();
-        logger.info("Đã bỏ lượt");
-    }
-    
-    /**
-     * Action: Sort hand
-     */
-    @LmlAction("sortHand")
-    public void sortHand() {
-        gameState.sortHand(sessionManager.getCurrentUserId());
-        playerHand = gameState.getPlayerHand(sessionManager.getCurrentUserId());
-        displayPlayerHand();
-        logger.info("Đã xếp bài");
-    }
-    
-    /**
-     * Hiển thị played cards
-     */
-    private void displayPlayedCards(List<Card> cards) {
-        if (playedCardsTable == null) {
-            return;
-        }
-        
-        playedCardsTable.clearChildren();
-        
-        for (Card card : cards) {
-            Image cardImage = new Image(getTexture(card.getAssetPath()));
-            cardImage.setSize(60, 90);
-            playedCardsTable.add(cardImage).pad(5);
-        }
-    }
-    
-    /**
-     * Action: Show menu
-     */
-    @LmlAction("showMenu")
-    public void showMenu() {
-        // TODO: Show pause menu
-        logger.info("Show menu");
-    }
-    
-    @Override
-    public void render(Stage stage, float delta) {
-        ScreenUtils.clear(0f, 0f, 0f, 1f);
-        stage.act(delta);
-        stage.draw();
-    }
-    
-    /**
-     * Cleanup
+     * Dispose resources
      */
     public void dispose() {
-        for (Texture texture : textureCache.values()) {
-            texture.dispose();
-        }
-        textureCache.clear();
-    }
-    
-    /**
-     * Custom Actor cho Card với selection state
-     */
-    private static class CardActor extends Image {
-        private final Card card;
-        private boolean selected = false;
-        
-        public CardActor(Texture texture, Card card) {
-            super(texture);
-            this.card = card;
-        }
-        
-        public void setSelected(boolean selected) {
-            this.selected = selected;
-            if (selected) {
-                this.setColor(1f, 1f, 0.5f, 1f); // Highlight
-            } else {
-                this.setColor(1f, 1f, 1f, 1f);
-            }
-        }
-        
-        public Card getCard() {
-            return card;
+        logger.info("Disposing TienLenGameController...");
+        if (stage != null) {
+            stage.dispose();
+            stage = null;
         }
     }
 }

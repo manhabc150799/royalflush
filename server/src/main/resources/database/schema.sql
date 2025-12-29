@@ -118,11 +118,22 @@ COMMENT ON TABLE match_history IS 'Completed match records for analytics';
 COMMENT ON TABLE room_players IS 'Many-to-many relationship between rooms and players';
 
 -- ============================================
--- INITIAL DATA: Daily Quest Configurations
+-- INITIAL DATA: Daily Quest Configurations (5 quests, 20,000 credits each)
 -- ============================================
-INSERT INTO daily_quest_config (description, game_type, target_count, reward_credits) VALUES
-    ('Win 2 matches in Poker', 'POKER', 2, 500),
-    ('Play 5 Tien Len matches', 'TIENLEN', 5, 300),
-    ('Win any 3 matches', 'ANY', 3, 1000),
-    ('Play 10 matches total', 'ANY', 10, 500)
-ON CONFLICT DO NOTHING;
+-- Only insert if table is empty (for fresh databases)
+-- For existing databases, you may need to manually run:
+-- DELETE FROM user_quest_progress; DELETE FROM daily_quest_config;
+-- Then re-run the INSERT below
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM daily_quest_config LIMIT 1) THEN
+        -- Insert the 5 daily quests
+        INSERT INTO daily_quest_config (description, game_type, target_count, reward_credits) VALUES
+            ('Login today', 'ANY', 1, 20000),
+            ('Play 5 hands', 'ANY', 5, 20000),
+            ('Win 2 matches', 'ANY', 2, 20000),
+            ('Play 3 Poker matches', 'POKER', 3, 20000),
+            ('Bet 5000 total', 'ANY', 5000, 20000);
+    END IF;
+END $$;

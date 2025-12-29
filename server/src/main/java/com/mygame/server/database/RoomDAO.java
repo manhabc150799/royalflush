@@ -145,6 +145,14 @@ public class RoomDAO {
                 
                 return room;
             }
+        } catch (SQLException e) {
+            try {
+                dbManager.getConnection().rollback();
+            } catch (SQLException rollbackEx) {
+                logger.error("Lỗi rollback: {}", rollbackEx.getMessage());
+            }
+            logger.error("Lỗi khi lấy room data: {}", e.getMessage(), e);
+            throw e;
         }
         
         throw new SQLException("Room không tồn tại");
@@ -173,6 +181,14 @@ public class RoomDAO {
                 player.setPosition(rs.getInt("position"));
                 players.add(player);
             }
+        } catch (SQLException e) {
+            try {
+                dbManager.getConnection().rollback();
+            } catch (SQLException rollbackEx) {
+                logger.error("Lỗi rollback: {}", rollbackEx.getMessage());
+            }
+            logger.error("Lỗi khi lấy room players: {}", e.getMessage(), e);
+            throw e;
         }
         
         return players;
@@ -222,14 +238,50 @@ public class RoomDAO {
                     UserDAO.UserProfile host = userDAO.getUserProfile(room.getHostUserId());
                     room.setHostUsername(host.getUsername());
                 } catch (SQLException e) {
+                    try {
+                        dbManager.getConnection().rollback();
+                    } catch (SQLException rollbackEx) {
+                        logger.error("Lỗi rollback: {}", rollbackEx.getMessage());
+                    }
                     room.setHostUsername("Unknown");
                 }
                 
                 rooms.add(room);
             }
+        } catch (SQLException e) {
+            try {
+                dbManager.getConnection().rollback();
+            } catch (SQLException rollbackEx) {
+                logger.error("Lỗi rollback: {}", rollbackEx.getMessage());
+            }
+            logger.error("Lỗi khi lấy waiting rooms: {}", e.getMessage(), e);
+            throw e;
         }
         
         return rooms;
+    }
+    
+    /**
+     * Cập nhật host của room
+     */
+    public void updateHost(int roomId, int newHostId) throws SQLException {
+        String sql = "UPDATE game_rooms SET host_user_id = ? WHERE id = ?";
+        
+        try (PreparedStatement pstmt = dbManager.getConnection().prepareStatement(sql)) {
+            pstmt.setInt(1, newHostId);
+            pstmt.setInt(2, roomId);
+            pstmt.executeUpdate();
+            dbManager.getConnection().commit();
+            logger.info("Đã cập nhật host của room {} thành user {}", roomId, newHostId);
+        } catch (SQLException e) {
+            try {
+                dbManager.getConnection().rollback();
+            } catch (SQLException rollbackEx) {
+                logger.error("Lỗi rollback: {}", rollbackEx.getMessage());
+            }
+            logger.error("Lỗi khi cập nhật host: {}", e.getMessage(), e);
+            throw e;
+        }
     }
     
     /**

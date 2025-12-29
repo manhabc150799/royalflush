@@ -90,6 +90,8 @@ public class GameRoomManager {
             return;
         }
         
+        boolean wasHost = (room.getHostUserId() == userId);
+        
         // Xóa khỏi database
         roomDAO.removePlayerFromRoom(roomId, userId);
         
@@ -97,23 +99,35 @@ public class GameRoomManager {
         room.removePlayer(userId);
         userToRoom.remove(userId);
         
-        // Nếu room trống hoặc host rời, xóa room
-        if (room.getCurrentPlayers() == 0 || room.getHostUserId() == userId) {
-            if (room.getCurrentPlayers() > 0) {
-                // Chuyển host cho player đầu tiên
-                int newHostId = room.getPlayers().keySet().iterator().next();
-                room.setHostUserId(newHostId);
-                // Update trong database
-                // TODO: Update host trong database
-            } else {
-                // Xóa room
-                roomDAO.deleteRoom(roomId);
-                activeRooms.remove(roomId);
-                logger.info("Đã xóa room trống: {}", roomId);
-            }
+        int playersAfterLeave = room.getCurrentPlayers();
+        
+        // Nếu room trống (không còn ai), xóa room
+        if (playersAfterLeave == 0) {
+            roomDAO.deleteRoom(roomId);
+            activeRooms.remove(roomId);
+            logger.info("Đã xóa room trống: {}", roomId);
+        } else if (wasHost && playersAfterLeave > 0) {
+            // Host rời nhưng còn players, chuyển host cho player đầu tiên
+            int newHostId = room.getPlayers().keySet().iterator().next();
+            room.setHostUserId(newHostId);
+            // Update host trong database
+            roomDAO.updateHost(roomId, newHostId);
+            logger.info("Đã chuyển host của room {} từ {} sang {}", roomId, userId, newHostId);
         }
         
-        logger.info("Player {} đã rời room {}", userId, roomId);
+        logger.info("Player {} đã rời room {} (còn lại {} players)", userId, roomId, playersAfterLeave);
+    }
+    
+    /**
+     * Cập nhật status của room (ví dụ: khi game bắt đầu -> PLAYING)
+     */
+    public void updateRoomStatus(int roomId, String status) throws SQLException {
+        GameRoom room = activeRooms.get(roomId);
+        if (room != null) {
+            room.setStatus(status);
+        }
+        roomDAO.updateRoomStatus(roomId, status);
+        logger.info("Đã cập nhật status của room {} thành {}", roomId, status);
     }
     
     /**
@@ -165,4 +179,5 @@ public class GameRoomManager {
         }
     }
 }
+
 
