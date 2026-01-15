@@ -43,33 +43,46 @@ import java.util.Map;
 @ViewActionContainer("poker")
 public class PokerGameController implements ViewRenderer, ActionContainer {
     private static final Logger logger = LoggerFactory.getLogger(PokerGameController.class);
-    
-    @Inject private SessionManager sessionManager;
-    @Inject private InterfaceService interfaceService;
-    @Inject private AssetService assetService;
-    
-    @LmlActor("playerCardsTable") private VisTable playerCardsTable;
-    @LmlActor("communityCardsTable") private VisTable communityCardsTable;
-    @LmlActor("potLabel") private VisLabel potLabel;
-    @LmlActor("betSlider") private VisSlider betSlider;
-    @LmlActor("betAmountLabel") private VisLabel betAmountLabel;
-    @LmlActor("foldButton") private VisTextButton foldButton;
-    @LmlActor("checkButton") private VisTextButton checkButton;
-    @LmlActor("callButton") private VisTextButton callButton;
-    @LmlActor("raiseButton") private VisTextButton raiseButton;
-    @LmlActor("allinButton") private VisTextButton allinButton;
-    
+
+    @Inject
+    private SessionManager sessionManager;
+    @Inject
+    private InterfaceService interfaceService;
+    @Inject
+    private AssetService assetService;
+
+    @LmlActor("playerCardsTable")
+    private VisTable playerCardsTable;
+    @LmlActor("communityCardsTable")
+    private VisTable communityCardsTable;
+    @LmlActor("potLabel")
+    private VisLabel potLabel;
+    @LmlActor("betSlider")
+    private VisSlider betSlider;
+    @LmlActor("betAmountLabel")
+    private VisLabel betAmountLabel;
+    @LmlActor("foldButton")
+    private VisTextButton foldButton;
+    @LmlActor("checkButton")
+    private VisTextButton checkButton;
+    @LmlActor("callButton")
+    private VisTextButton callButton;
+    @LmlActor("raiseButton")
+    private VisTextButton raiseButton;
+    @LmlActor("allinButton")
+    private VisTextButton allinButton;
+
     private PokerGameState gameState;
     private Deck deck;
     private Map<String, Texture> textureCache = new HashMap<>();
     private List<Card> playerHoleCards;
     private long playerChips = 1000;
     private long currentBet = 0;
-    
+
     @LmlAfter
     public void initialize() {
         logger.info("PokerGameController đã khởi tạo");
-        
+
         // Setup bet slider listener
         if (betSlider != null && betAmountLabel != null) {
             betSlider.addListener(new ChangeListener() {
@@ -79,47 +92,47 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
                 }
             });
         }
-        
+
         // Start singleplayer game
         startSingleplayerGame();
     }
-    
+
     /**
      * Bắt đầu singleplayer game
      */
     private void startSingleplayerGame() {
         logger.info("Bắt đầu singleplayer poker game");
-        
+
         // Tạo deck và xáo bài
         deck = new Deck();
         deck.shuffle();
-        
+
         // Tạo game state với 5 players (1 player + 4 bots)
         List<Integer> playerIds = java.util.Arrays.asList(
-            sessionManager.getCurrentUserId(),
-            1001, 1002, 1003, 1004 // Bot IDs
+                sessionManager.getCurrentUserId(),
+                1001, 1002, 1003, 1004 // Bot IDs
         );
         gameState = new PokerGameState(playerIds, 1000, 10, 20);
-        
+
         // Deal hole cards cho player
         playerHoleCards = deck.deal(2);
         gameState.dealHoleCards(sessionManager.getCurrentUserId(), playerHoleCards);
-        
+
         // Deal hole cards cho bots (ẩn)
         for (int i = 1; i < 5; i++) {
             List<Card> botCards = deck.deal(2);
             gameState.dealHoleCards(playerIds.get(i), botCards);
         }
-        
+
         // Hiển thị player cards
         displayPlayerCards();
-        
+
         // Update UI
         updateUI();
-        
+
         logger.info("Đã deal cards cho tất cả players");
     }
-    
+
     /**
      * Hiển thị player hole cards
      */
@@ -127,15 +140,15 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
         if (playerCardsTable == null || playerHoleCards == null) {
             return;
         }
-        
+
         playerCardsTable.clearChildren();
-        
+
         for (Card card : playerHoleCards) {
             Image cardImage = createCardImage(card);
             playerCardsTable.add(cardImage).width(100).height(140).pad(5);
         }
     }
-    
+
     /**
      * Tạo Image từ Card
      */
@@ -146,7 +159,7 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
         image.setSize(100, 140);
         return image;
     }
-    
+
     /**
      * Tạo Image từ card back
      */
@@ -157,7 +170,7 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
         image.setSize(100, 140);
         return image;
     }
-    
+
     /**
      * Lấy texture từ cache hoặc load mới
      */
@@ -165,12 +178,12 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
         if (textureCache.containsKey(assetPath)) {
             return textureCache.get(assetPath);
         }
-        
+
         Texture texture = new Texture(Gdx.files.internal(assetPath));
         textureCache.put(assetPath, texture);
         return texture;
     }
-    
+
     /**
      * Hiển thị community cards
      */
@@ -178,25 +191,23 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
         if (communityCardsTable == null || gameState == null) {
             return;
         }
-        
+
         communityCardsTable.clearChildren();
-        
+
         List<Card> communityCards = gameState.getCommunityCards();
         for (Card card : communityCards) {
             Image cardImage = createCardImage(card);
             // Animation: card bay từ deck
             cardImage.addAction(Actions.sequence(
-                Actions.alpha(0f),
-                Actions.moveBy(-200, 0),
-                Actions.parallel(
-                    Actions.fadeIn(0.3f),
-                    Actions.moveBy(200, 0, 0.3f)
-                )
-            ));
+                    Actions.alpha(0f),
+                    Actions.moveBy(-200, 0),
+                    Actions.parallel(
+                            Actions.fadeIn(0.3f),
+                            Actions.moveBy(200, 0, 0.3f))));
             communityCardsTable.add(cardImage).width(80).height(120).pad(5);
         }
     }
-    
+
     /**
      * Update UI
      */
@@ -205,16 +216,16 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
             if (potLabel != null) {
                 potLabel.setText("Pot: " + gameState.getPot());
             }
-            
+
             // Update bet slider max
             if (betSlider != null) {
                 betSlider.setRange(0, playerChips);
             }
-            
+
             displayCommunityCards();
         }
     }
-    
+
     /**
      * Update bet amount label
      */
@@ -224,7 +235,7 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
             betAmountLabel.setText(String.valueOf(betAmount));
         }
     }
-    
+
     /**
      * Action: Fold
      */
@@ -234,7 +245,7 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
         gameState.fold(sessionManager.getCurrentUserId());
         // TODO: Bot turn logic
     }
-    
+
     /**
      * Action: Check
      */
@@ -244,7 +255,7 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
         // Check = bet 0
         // TODO: Implement
     }
-    
+
     /**
      * Action: Call
      */
@@ -258,17 +269,18 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
             updateUI();
         }
     }
-    
+
     /**
      * Action: Raise
      */
     @LmlAction("raise")
     public void raise() {
-        if (betSlider == null) return;
-        
+        if (betSlider == null)
+            return;
+
         long raiseAmount = (long) betSlider.getValue();
         logger.info("Player raised: {}", raiseAmount);
-        
+
         if (raiseAmount > 0) {
             gameState.bet(sessionManager.getCurrentUserId(), raiseAmount);
             playerChips -= raiseAmount;
@@ -276,7 +288,7 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
             updateUI();
         }
     }
-    
+
     /**
      * Action: All-in
      */
@@ -288,7 +300,7 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
         playerChips = 0;
         updateUI();
     }
-    
+
     /**
      * Action: Show menu
      */
@@ -297,7 +309,7 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
         // TODO: Show pause menu
         logger.info("Show menu");
     }
-    
+
     /**
      * Deal flop
      */
@@ -309,7 +321,7 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
             logger.info("Dealt flop");
         }
     }
-    
+
     /**
      * Deal turn
      */
@@ -321,7 +333,7 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
             logger.info("Dealt turn");
         }
     }
-    
+
     /**
      * Deal river
      */
@@ -333,14 +345,14 @@ public class PokerGameController implements ViewRenderer, ActionContainer {
             logger.info("Dealt river");
         }
     }
-    
+
     @Override
     public void render(Stage stage, float delta) {
         ScreenUtils.clear(0f, 0f, 0f, 1f);
         stage.act(delta);
         stage.draw();
     }
-    
+
     /**
      * Cleanup textures
      */

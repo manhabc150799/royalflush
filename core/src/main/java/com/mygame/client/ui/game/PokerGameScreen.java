@@ -78,6 +78,9 @@ public class PokerGameScreen implements Screen {
     // Warning toast
     private Label warningToast;
 
+    // Callback for returning to lobby
+    private Runnable onReturnToLobby;
+
     /**
      * Create PokerGameScreen.
      *
@@ -468,8 +471,17 @@ public class PokerGameScreen implements Screen {
     }
 
     private void syncPokerState(PokerGameState state) {
-        if (state == null)
+        if (state == null) {
+            Gdx.app.error(TAG, "syncPokerState called with NULL state!");
             return;
+        }
+
+        // DEBUG: Log state info
+        Gdx.app.log(TAG, "=== SYNC POKER STATE ===");
+        Gdx.app.log(TAG, "Pot: " + state.getPot());
+        Gdx.app.log(TAG, "CurrentBet: " + state.getCurrentBet());
+        Gdx.app.log(TAG, "CurrentTurn: " + state.getCurrentPlayerTurn() + " (me=" + localPlayerId + ")");
+        Gdx.app.log(TAG, "Stage: " + state.getCurrentStage());
 
         // Update pot
         updatePot(state.getPot());
@@ -478,6 +490,7 @@ public class PokerGameScreen implements Screen {
         tableLayout.clearCommunityCards();
         List<Card> community = state.getCommunityCards();
         if (community != null) {
+            Gdx.app.log(TAG, "Community cards: " + community.size());
             for (int i = 0; i < community.size(); i++) {
                 addCommunityCard(community.get(i), i);
             }
@@ -503,18 +516,23 @@ public class PokerGameScreen implements Screen {
             // Update folded status
             boolean folded = state.isPlayerFolded(playerId);
             seat.setFolded(folded);
+
+            Gdx.app.log(TAG, "Player " + playerId + ": chips=" + chips + ", bet=" + currentBet + ", folded=" + folded);
         }
+
+        // Update current turn FIRST before showing controls
+        int currentTurnPlayer = state.getCurrentPlayerTurn();
+        setCurrentTurn(currentTurnPlayer);
 
         // Update control panel if it's my turn
-        if (state.getCurrentPlayerTurn() == localPlayerId) {
+        if (currentTurnPlayer == localPlayerId) {
+            Gdx.app.log(TAG, ">>> IT IS MY TURN! Showing controls.");
             updateControlPanel(state);
         } else {
-            // Ensure controls are hidden if not my turn (redundant safety)
+            Gdx.app.log(TAG, "Not my turn, hiding controls.");
             tableLayout.setControlsVisible(false);
         }
-
-        // Update current turn
-        setCurrentTurn(state.getCurrentPlayerTurn());
+        Gdx.app.log(TAG, "=== END SYNC ===");
     }
 
     private void handlePlayerTurnPacket(PlayerTurnPacket packet) {
@@ -540,20 +558,20 @@ public class PokerGameScreen implements Screen {
             tableLayout.setCallButtonVisible(true, toCall);
         }
 
-        // Raise Slider Logic
-        long minRaise = state.getLastRaiseAmount();
-        long maxRaise = myChips - Math.max(0, toCall); // Remaining chips after call
+        // Raise Logic - Min raise is Big Blind (1000)
+        long minRaise = 1000L; // Fixed BB value
+        long maxRaise = myChips; // Can raise up to all chips
 
         if (maxRaise < minRaise) {
             // Can only All-in (raise rest) or Fold/Call
             // For simplicity, disable raise or set min=max
             if (maxRaise > 0) {
-                tableLayout.setSliderRange(maxRaise, maxRaise);
+                tableLayout.setRaiseLimits(maxRaise, maxRaise);
             } else {
-                tableLayout.setSliderRange(0, 0); // Cannot raise
+                tableLayout.setRaiseLimits(0, 0); // Cannot raise
             }
         } else {
-            tableLayout.setSliderRange(minRaise, maxRaise);
+            tableLayout.setRaiseLimits(minRaise, maxRaise);
         }
 
         tableLayout.setControlsVisible(true);
@@ -564,10 +582,110 @@ public class PokerGameScreen implements Screen {
             return;
 
         int winnerId = packet.getWinnerId();
-        Gdx.app.log(TAG, "Game ended! Winner: " + winnerId);
+        boolean isWinner = (winnerId == localPlayerId);
+        String winnerName = getUsernameForPlayer(winnerId);
 
-        String winMsg = (winnerId == localPlayerId) ? "YOU WIN!" : getUsernameForPlayer(winnerId) + " wins!";
-        showWarningToast(winMsg);
+        Gdx.app.log(TAG, "Game ended! Winner: " + winnerName + " (ID: " + winnerId + ")");
+
+        // Hide controls
+        tableLayout.setControlsVisible(false);
+
+        // Show winner dialog
+        showGameEndDialog(isWinner, winnerName, packet.getCreditChanges());
+    }
+
+    /**
+     * Show game end dialog with winner info and auto-return to lobby.
+     */
+    private void showGameEndDialog(boolean isWinner, String winnerName, java.util.List<Long> creditChanges) {
+        // Create a dark overlay using Pixmap
+        com.badlogic.gdx.graphics.Pixmap pixmap = new com.badlogic.gdx.graphics.Pixmap(1, 1,
+                com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        pixmap.setColor(0, 0, 0, 0.7f);
+        pixmap.fill();
+        Texture overlayTex = new Texture(pixmap);
+        pixmap.dispose();
+
+        Table overlay = new Table();
+        overlay.setFillParent(true);
+        overlay.setBackground(new com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable(overlayTex));
+
+        // Create popup panel
+        Table popup = new Table();
+        popup.setBackground(skin.getDrawable("panel1"));
+        popup.pad(30);
+
+        // Title
+        String title = isWinner ? "VICTORY!" : "GAME OVER";
+        Label.LabelStyle titleStyle = new Label.LabelStyle();
+        titleStyle.font = skin.getFont("Big_blue_font");
+        titleStyle.fontColor = isWinner ? Color.GOLD : Color.WHITE;
+        Label titleLabel = new Label(title, titleStyle);
+        titleLabel.setAlignment(Align.center);
+        popup.add(titleLabel).padBottom(20).row();
+
+        // Winner message
+        String message = isWinner ? "Congratulations! You won!" : winnerName + " wins!";
+        Label.LabelStyle msgStyle = new Label.LabelStyle();
+        msgStyle.font = skin.getFont("Blue_font");
+        msgStyle.fontColor = Color.WHITE;
+        Label messageLabel = new Label(message, msgStyle);
+        messageLabel.setAlignment(Align.center);
+        popup.add(messageLabel).padBottom(10).row();
+
+        // Credit change if available
+        if (creditChanges != null && !creditChanges.isEmpty()) {
+            int myIndex = playerOrder.indexOf(localPlayerId);
+            if (myIndex >= 0 && myIndex < creditChanges.size()) {
+                long myChange = creditChanges.get(myIndex);
+                String changeText = (myChange >= 0 ? "+" : "") + myChange + " credits";
+                Label.LabelStyle changeStyle = new Label.LabelStyle();
+                changeStyle.font = skin.getFont("Blue_font");
+                changeStyle.fontColor = myChange >= 0 ? Color.GREEN : Color.RED;
+                Label changeLabel = new Label(changeText, changeStyle);
+                changeLabel.setAlignment(Align.center);
+                popup.add(changeLabel).padBottom(20).row();
+            }
+        }
+
+        // Return to lobby button
+        TextButton lobbyButton = new TextButton("Return to Lobby", skin, "blue_text_button");
+        lobbyButton.addListener(new com.badlogic.gdx.scenes.scene2d.utils.ClickListener() {
+            @Override
+            public void clicked(com.badlogic.gdx.scenes.scene2d.InputEvent event, float x, float y) {
+                overlay.remove();
+                returnToLobby();
+            }
+        });
+        popup.add(lobbyButton).padTop(10);
+
+        overlay.add(popup).center();
+        stage.addActor(overlay);
+
+        // Auto-return after 5 seconds
+        overlay.addAction(com.badlogic.gdx.scenes.scene2d.actions.Actions.sequence(
+                com.badlogic.gdx.scenes.scene2d.actions.Actions.delay(5f),
+                com.badlogic.gdx.scenes.scene2d.actions.Actions.run(() -> {
+                    overlay.remove();
+                    returnToLobby();
+                })));
+    }
+
+    /**
+     * Return to the main lobby.
+     */
+    private void returnToLobby() {
+        Gdx.app.log(TAG, "Returning to lobby...");
+        if (onReturnToLobby != null) {
+            onReturnToLobby.run();
+        }
+    }
+
+    /**
+     * Set callback for returning to lobby.
+     */
+    public void setOnReturnToLobby(Runnable callback) {
+        this.onReturnToLobby = callback;
     }
 
     // ==================== TOAST ====================

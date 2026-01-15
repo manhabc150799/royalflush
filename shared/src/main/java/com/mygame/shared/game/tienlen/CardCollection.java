@@ -4,298 +4,237 @@ import com.mygame.shared.game.card.Card;
 import java.util.*;
 
 /**
- * Class quản lý và validate combinations trong Tiến Lên
+ * Class quản lý và validate combinations trong Tiến Lên Miền Nam.
+ * Rules:
+ * - Sorting: 3 < ... < A < 2. Suits: Spade(1) < Club(2) < Diamond(3) <
+ * Heart(4).
+ * - Combinations: Single, Pair, Triple, Quad, Straight (No 2), PairSeq (3+
+ * pairs).
+ * - Comparisons: Highest card (Rank + Suit).
  */
 public class CardCollection {
 
     /**
-     * Detect combination type từ danh sách cards
+     * Sort hand according to Tien Len rules.
+     */
+    public static void sortHandTienLen(List<Card> cards) {
+        if (cards == null)
+            return;
+        cards.sort((c1, c2) -> {
+            int rank1 = c1.getRankValueForTienLen();
+            int rank2 = c2.getRankValueForTienLen();
+            if (rank1 != rank2) {
+                return Integer.compare(rank1, rank2);
+            }
+            return Integer.compare(c1.getSuitValueForTienLen(), c2.getSuitValueForTienLen());
+        });
+    }
+
+    /**
+     * Detect combination type from a list of cards.
      */
     public static TienLenCombinationType detectCombination(List<Card> cards) {
         if (cards == null || cards.isEmpty()) {
             return TienLenCombinationType.INVALID;
         }
 
-        int size = cards.size();
+        // Must sort first to ensure logic works
+        List<Card> sorted = new ArrayList<>(cards);
+        sortHandTienLen(sorted);
+
+        int size = sorted.size();
 
         if (size == 1) {
             return TienLenCombinationType.SINGLE;
         }
 
         if (size == 2) {
-            if (isSameRank(cards)) {
+            if (isSameRank(sorted))
                 return TienLenCombinationType.PAIR;
-            }
             return TienLenCombinationType.INVALID;
         }
 
         if (size == 3) {
-            if (isSameRank(cards)) {
+            if (isSameRank(sorted))
                 return TienLenCombinationType.TRIPLE;
-            }
-            if (isStraight(cards)) {
+            if (isStraight(sorted))
                 return TienLenCombinationType.STRAIGHT;
-            }
             return TienLenCombinationType.INVALID;
         }
 
         if (size == 4) {
-            if (isSameRank(cards)) {
-                return TienLenCombinationType.FOUR_OF_A_KIND; // Bomb
-            }
-            if (isStraight(cards)) {
+            if (isSameRank(sorted))
+                return TienLenCombinationType.FOUR_OF_A_KIND;
+            if (isStraight(sorted))
                 return TienLenCombinationType.STRAIGHT;
-            }
             return TienLenCombinationType.INVALID;
         }
 
-        // >= 5 cards
-        if (isStraight(cards)) {
+        // 5+ cards
+        if (isStraight(sorted))
             return TienLenCombinationType.STRAIGHT;
-        }
-
-        if (isPairSequence(cards)) {
+        if (isPairSequence(sorted))
             return TienLenCombinationType.PAIR_SEQUENCE;
-        }
-
-        if (isTripleSequence(cards)) {
-            return TienLenCombinationType.TRIPLE_SEQUENCE;
-        }
 
         return TienLenCombinationType.INVALID;
     }
 
     /**
-     * Kiểm tra có thể chặt được combination trước đó không
+     * Check if 'currentCards' can beat 'prevCards'.
      */
     public static boolean canBeat(TienLenCombinationType prevType, List<Card> prevCards,
             TienLenCombinationType currentType, List<Card> currentCards) {
-        if (prevCards == null || prevCards.isEmpty() || currentCards == null || currentCards.isEmpty()) {
+        if (prevType == null || currentType == null)
             return false;
+
+        // Sort both for consistent comparison
+        List<Card> prev = new ArrayList<>(prevCards);
+        List<Card> curr = new ArrayList<>(currentCards);
+        sortHandTienLen(prev);
+        sortHandTienLen(curr);
+
+        // --- CHOP RULES (Hàng chặt Hàng / Heo) ---
+
+        // 1. 3 PAIRS SEQUENCE (3 Đôi Thông)
+        if (currentType == TienLenCombinationType.PAIR_SEQUENCE && curr.size() == 6) {
+            // Cuts Single Pig (any 2)
+            if (prevType == TienLenCombinationType.SINGLE && isPig(prev.get(0)))
+                return true;
+            // Cuts smaller 3 Pairs Sequence
+            if (prevType == TienLenCombinationType.PAIR_SEQUENCE && prev.size() == 6) {
+                return compareHightestCard(prev, curr) < 0;
+            }
         }
 
-        // SPECIAL CUT RULES (Chặt):
-
-        // 1. FOUR_OF_A_KIND (Tứ Quý) can cut:
-        // - Another Four of a Kind (higher rank)
-        // - Single 2 (Heo)
-        // - Pair of 2s (Đôi Heo)
-        // - 3-Pair Sequence (3 Đôi Thông)
+        // 2. QUAD (Tứ Quý)
         if (currentType == TienLenCombinationType.FOUR_OF_A_KIND) {
+            // Cuts Single Pig OR Pair of Pigs
+            if (prevType == TienLenCombinationType.SINGLE && isPig(prev.get(0)))
+                return true;
+            if (prevType == TienLenCombinationType.PAIR && isPairOfPigs(prev))
+                return true;
+            // Cuts 3 Pairs Sequence
+            if (prevType == TienLenCombinationType.PAIR_SEQUENCE && prev.size() == 6)
+                return true;
+            // Cuts smaller Quad
             if (prevType == TienLenCombinationType.FOUR_OF_A_KIND) {
-                return compareBombs(prevCards, currentCards) < 0;
-            }
-            // Tứ quý chặt heo
-            if (prevType == TienLenCombinationType.SINGLE && isSingleTwo(prevCards)) {
-                return true;
-            }
-            // Tứ quý chặt đôi heo
-            if (prevType == TienLenCombinationType.PAIR && isPairOfTwos(prevCards)) {
-                return true;
-            }
-            // Tứ quý chặt 3 đôi thông
-            if (prevType == TienLenCombinationType.PAIR_SEQUENCE && prevCards.size() == 6) {
-                return true;
-            }
-            return false; // Tứ quý không chặt được các loại khác tùy tiện
-        }
-
-        // 2. PAIR_SEQUENCE (Đôi Thông) can cut:
-        // - 3 đôi thông (6 lá) chặt được 1 heo
-        // - 4 đôi thông (8 lá) chặt được đôi heo, tứ quý
-        if (currentType == TienLenCombinationType.PAIR_SEQUENCE) {
-            int size = currentCards.size();
-            if (prevType == TienLenCombinationType.SINGLE && isSingleTwo(prevCards) && size >= 6) {
-                return true;
-            }
-            if (prevType == TienLenCombinationType.PAIR && isPairOfTwos(prevCards) && size >= 8) {
-                return true;
-            }
-            // 4 đôi thông (8 lá) chặt tứ quý
-            if (prevType == TienLenCombinationType.FOUR_OF_A_KIND && size >= 8) {
-                return true;
+                return compareHightestCard(prev, curr) < 0;
             }
         }
 
-        // Chỉ cùng loại mới chặt được
-        if (prevType != currentType) {
+        // 3. 4 PAIRS SEQUENCE (4 Đôi Thông - Bất tử cắt)
+        if (currentType == TienLenCombinationType.PAIR_SEQUENCE && curr.size() == 8) {
+            // Cuts Single Pig, Pair Pigs
+            if (prevType == TienLenCombinationType.SINGLE && isPig(prev.get(0)))
+                return true;
+            if (prevType == TienLenCombinationType.PAIR && isPairOfPigs(prev))
+                return true;
+            // Cuts 3 Pairs Sequence, Quad
+            if (prevType == TienLenCombinationType.PAIR_SEQUENCE && prev.size() == 6)
+                return true;
+            if (prevType == TienLenCombinationType.FOUR_OF_A_KIND)
+                return true;
+            // Cuts smaller 4 Pairs Sequence
+            if (prevType == TienLenCombinationType.PAIR_SEQUENCE && prev.size() == 8) {
+                return compareHightestCard(prev, curr) < 0;
+            }
+        }
+
+        // --- NORMAL RULES ---
+
+        // Must be same type and same size
+        if (prevType != currentType)
             return false;
-        }
-
-        // Cùng size
-        if (prevCards.size() != currentCards.size()) {
+        if (prev.size() != curr.size())
             return false;
-        }
 
-        // So sánh theo loại
-        switch (currentType) {
-            case SINGLE:
-            case STRAIGHT:
-                return compareHighestCard(prevCards, currentCards) < 0;
-
-            case PAIR:
-            case TRIPLE:
-                return compareSameRank(prevCards, currentCards) < 0;
-
-            case PAIR_SEQUENCE:
-            case TRIPLE_SEQUENCE:
-                return compareSequence(prevCards, currentCards) < 0;
-
-            default:
-                return false;
-        }
+        // Compare highest card (Rank + Suit)
+        return compareHightestCard(prev, curr) < 0;
     }
 
+    // --- HELPER METHODS ---
+
     /**
-     * Kiểm tra cùng rank
+     * Compare highest card of two sets.
+     * Returns < 0 if cards1 < cards2 (cards2 wins).
      */
+    private static int compareHightestCard(List<Card> cards1, List<Card> cards2) {
+        Card max1 = cards1.get(cards1.size() - 1); // Assumes sorted
+        Card max2 = cards2.get(cards2.size() - 1);
+
+        int rank1 = max1.getRankValueForTienLen();
+        int rank2 = max2.getRankValueForTienLen();
+
+        if (rank1 != rank2) {
+            return Integer.compare(rank1, rank2);
+        }
+        return Integer.compare(max1.getSuitValueForTienLen(), max2.getSuitValueForTienLen());
+    }
+
     private static boolean isSameRank(List<Card> cards) {
         if (cards.isEmpty())
             return false;
         int rank = cards.get(0).getRank();
-        return cards.stream().allMatch(c -> c.getRank() == rank);
-    }
-
-    /**
-     * Kiểm tra có phải straight không (sảnh)
-     */
-    private static boolean isStraight(List<Card> cards) {
-        if (cards.size() < 3)
-            return false;
-
-        List<Integer> tienLenRanks = new ArrayList<>();
-        for (Card card : cards) {
-            tienLenRanks.add(card.getRankValueForTienLen());
-        }
-        Collections.sort(tienLenRanks);
-
-        for (int i = 0; i < tienLenRanks.size() - 1; i++) {
-            if (tienLenRanks.get(i + 1) - tienLenRanks.get(i) != 1) {
+        for (Card c : cards) {
+            if (c.getRank() != rank)
                 return false;
-            }
         }
-
         return true;
     }
 
-    /**
-     * Kiểm tra có phải đôi thông không
-     */
-    private static boolean isPairSequence(List<Card> cards) {
-        if (cards.size() < 6 || cards.size() % 2 != 0)
+    private static boolean isStraight(List<Card> sortedCards) {
+        if (sortedCards.size() < 3)
             return false;
 
-        // Group thành pairs
-        Map<Integer, Integer> rankCounts = new HashMap<>();
-        for (Card card : cards) {
-            rankCounts.put(card.getRank(), rankCounts.getOrDefault(card.getRank(), 0) + 1);
-        }
-
-        // Mỗi rank phải có đúng 2 lá
-        for (int count : rankCounts.values()) {
-            if (count != 2)
+        // Rule: 2 cannot be in a straight (Sequence 3..A only)
+        for (Card c : sortedCards) {
+            if (c.getRank() == 2)
                 return false;
         }
 
-        // Các ranks phải tạo thành straight
-        List<Integer> ranks = new ArrayList<>(rankCounts.keySet());
-        ranks.sort((a, b) -> Integer.compare(
-                new Card(a, cards.get(0).getSuit()).getRankValueForTienLen(),
-                new Card(b, cards.get(0).getSuit()).getRankValueForTienLen()));
-
-        return isStraightFromRanks(ranks, cards.get(0).getSuit());
-    }
-
-    /**
-     * Kiểm tra có phải tam thông không
-     */
-    private static boolean isTripleSequence(List<Card> cards) {
-        if (cards.size() < 6 || cards.size() % 3 != 0)
-            return false;
-
-        Map<Integer, Integer> rankCounts = new HashMap<>();
-        for (Card card : cards) {
-            rankCounts.put(card.getRank(), rankCounts.getOrDefault(card.getRank(), 0) + 1);
-        }
-
-        for (int count : rankCounts.values()) {
-            if (count != 3)
-                return false;
-        }
-
-        List<Integer> ranks = new ArrayList<>(rankCounts.keySet());
-        ranks.sort((a, b) -> Integer.compare(
-                new Card(a, cards.get(0).getSuit()).getRankValueForTienLen(),
-                new Card(b, cards.get(0).getSuit()).getRankValueForTienLen()));
-
-        return isStraightFromRanks(ranks, cards.get(0).getSuit());
-    }
-
-    private static boolean isStraightFromRanks(List<Integer> ranks, com.mygame.shared.game.card.Suit suit) {
-        if (ranks.size() < 2)
-            return false;
-
-        for (int i = 0; i < ranks.size() - 1; i++) {
-            int rank1 = new Card(ranks.get(i), suit).getRankValueForTienLen();
-            int rank2 = new Card(ranks.get(i + 1), suit).getRankValueForTienLen();
+        for (int i = 0; i < sortedCards.size() - 1; i++) {
+            int rank1 = sortedCards.get(i).getRankValueForTienLen();
+            int rank2 = sortedCards.get(i + 1).getRankValueForTienLen();
             if (rank2 - rank1 != 1)
                 return false;
         }
         return true;
     }
 
-    /**
-     * So sánh highest card
-     */
-    private static int compareHighestCard(List<Card> cards1, List<Card> cards2) {
-        int max1 = cards1.stream().mapToInt(c -> c.getRankValueForTienLen()).max().orElse(0);
-        int max2 = cards2.stream().mapToInt(c -> c.getRankValueForTienLen()).max().orElse(0);
-        return Integer.compare(max1, max2);
-    }
-
-    /**
-     * So sánh same rank combinations
-     */
-    private static int compareSameRank(List<Card> cards1, List<Card> cards2) {
-        int rank1 = cards1.get(0).getRankValueForTienLen();
-        int rank2 = cards2.get(0).getRankValueForTienLen();
-        return Integer.compare(rank1, rank2);
-    }
-
-    /**
-     * So sánh sequences
-     */
-    private static int compareSequence(List<Card> cards1, List<Card> cards2) {
-        return compareHighestCard(cards1, cards2);
-    }
-
-    /**
-     * So sánh bombs
-     */
-    private static int compareBombs(List<Card> cards1, List<Card> cards2) {
-        return compareSameRank(cards1, cards2);
-    }
-
-    /**
-     * Helper: có phải 1 lá heo không
-     */
-    private static boolean isSingleTwo(List<Card> cards) {
-        if (cards.size() != 1)
+    private static boolean isPairSequence(List<Card> sortedCards) {
+        int size = sortedCards.size();
+        // Must be at least 3 pairs (6 cards) and even number
+        if (size < 6 || size % 2 != 0)
             return false;
-        Card c = cards.get(0);
-        // Sử dụng rank value theo Tiến Lên để tránh phụ thuộc mapping rank nội bộ
-        int twoValue = new Card(2, com.mygame.shared.game.card.Suit.CLUBS).getRankValueForTienLen();
-        return c.getRankValueForTienLen() == twoValue;
+
+        // Check if each adjacent pair is a Pair
+        for (int i = 0; i < size; i += 2) {
+            Card c1 = sortedCards.get(i);
+            Card c2 = sortedCards.get(i + 1);
+            if (c1.getRank() != c2.getRank())
+                return false;
+        }
+
+        // Check if pairs are consecutive (e.g. 33, 44, 55)
+        // Rule: No 2s in Pair Sequence
+        if (sortedCards.get(size - 1).getRank() == 2)
+            return false;
+
+        for (int i = 0; i < size - 2; i += 2) {
+            int rank1 = sortedCards.get(i).getRankValueForTienLen();
+            int rank2 = sortedCards.get(i + 2).getRankValueForTienLen(); // Next pair
+            if (rank2 - rank1 != 1)
+                return false;
+        }
+
+        return true;
     }
 
-    /**
-     * Helper: có phải đôi heo không
-     */
-    private static boolean isPairOfTwos(List<Card> cards) {
-        if (cards.size() != 2)
-            return false;
-        int twoValue = new Card(2, com.mygame.shared.game.card.Suit.CLUBS).getRankValueForTienLen();
-        return cards.get(0).getRankValueForTienLen() == twoValue
-                && cards.get(1).getRankValueForTienLen() == twoValue;
+    private static boolean isPig(Card c) {
+        return c.getRank() == 2;
+    }
+
+    private static boolean isPairOfPigs(List<Card> cards) {
+        return cards.size() == 2 && isPig(cards.get(0)) && isPig(cards.get(1));
     }
 }

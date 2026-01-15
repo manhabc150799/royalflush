@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.github.czyzby.autumn.annotation.Component;
 import com.github.czyzby.autumn.annotation.Inject;
+import com.github.czyzby.autumn.mvc.component.ui.InterfaceService;
 import com.github.czyzby.autumn.mvc.component.ui.controller.ViewRenderer;
 import com.github.czyzby.autumn.mvc.stereotype.View;
 import com.mygame.client.service.NetworkService;
@@ -15,6 +16,7 @@ import com.mygame.client.ui.game.PokerGameScreen;
 import com.mygame.client.ui.game.TienLenGameScreen;
 import com.mygame.shared.model.GameType;
 import com.mygame.shared.model.RoomInfo;
+import com.mygame.shared.network.packets.game.GameStartPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +35,8 @@ public class GameScreenController implements ViewRenderer {
     private NetworkService networkService;
     @Inject
     private SessionManager sessionManager;
+    @Inject
+    private InterfaceService interfaceService;
 
     // Screen instances - use interface/base class for polymorphism
     private Screen currentScreen;
@@ -87,8 +91,9 @@ public class GameScreenController implements ViewRenderer {
             }
 
             if (gameType == null) {
-                logger.error("No game type found in session, defaulting to TIENLEN");
-                gameType = GameType.TIENLEN;
+                logger.error("No game type found in session, cannot start game. returning to Lobby.");
+                Gdx.app.postRunnable(() -> interfaceService.show(LobbyController.class));
+                return;
             }
 
             logger.info("Initializing GameScreen: type={}, playerId={}, username={}, roomId={}",
@@ -108,6 +113,23 @@ public class GameScreenController implements ViewRenderer {
                 });
 
                 logger.info("PokerGameScreen initialized (NEW UI)");
+
+                // Set lobby callback
+                pokerScreen.setOnReturnToLobby(() -> {
+                    Gdx.app.postRunnable(() -> {
+                        logger.info("Returning to lobby, sending LeaveRoomRequest for room {}", roomId);
+                        networkService.sendPacket(new com.mygame.shared.network.packets.LeaveRoomRequest(roomId));
+                        dispose();
+                        interfaceService.show(LobbyController.class);
+                    });
+                });
+
+                // CRITICAL: Handle pending GameStartPacket (initial state)
+                GameStartPacket startPacket = sessionManager.getAndClearPendingGameStartPacket();
+                if (startPacket != null) {
+                    logger.info("Processing pending GameStartPacket");
+                    pokerScreen.updateUIFromPacket(startPacket);
+                }
             } else {
                 // TIENLEN
                 tienLenScreen = new TienLenGameScreen(localPlayerId, localUsername, roomId, roomInfo, networkService);
@@ -122,6 +144,13 @@ public class GameScreenController implements ViewRenderer {
                 });
 
                 logger.info("TienLenGameScreen initialized (NEW UI)");
+
+                // CRITICAL: Handle pending GameStartPacket (initial state)
+                GameStartPacket startPacket = sessionManager.getAndClearPendingGameStartPacket();
+                if (startPacket != null) {
+                    logger.info("Processing pending GameStartPacket for TienLen");
+                    tienLenScreen.updateUIFromPacket(startPacket);
+                }
             }
 
         } catch (Exception e) {

@@ -24,18 +24,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * PokerGameController - Minimal implementation showing only background + pause button
+ * PokerGameController - Minimal implementation showing only background + pause
+ * button
  * 
  * @author Royal FlushG Team
  */
 @View(id = "pokerGameJava", value = "ui/templates/poker_game_java.lml")
 public class PokerGameControllerJava implements ViewRenderer {
     private static final Logger logger = LoggerFactory.getLogger(PokerGameControllerJava.class);
-    
-    @Inject private SessionManager sessionManager;
-    @Inject private InterfaceService interfaceService;
-    @Inject private NetworkService networkService;
-    
+
+    @Inject
+    private SessionManager sessionManager;
+    @Inject
+    private InterfaceService interfaceService;
+    @Inject
+    private NetworkService networkService;
+
     private Stage stage;
     private Viewport viewport;
     private Skin skin;
@@ -54,26 +58,26 @@ public class PokerGameControllerJava implements ViewRenderer {
             initialized = true;
             logger.info("PokerGameControllerJava initialization complete");
         }
-        
+
         // Clear screen
         ScreenUtils.clear(0f, 0f, 0f, 1f);
-        
+
         // Update viewport if window resize (use stage's viewport)
         if (this.stage != null && this.stage.getViewport() != null) {
             this.stage.getViewport().update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
         }
-        
+
         // Update and render stage
         if (this.stage != null) {
             this.stage.act(delta);
             this.stage.draw();
         }
     }
-    
+
     private void initialize() {
         logger.info("Initializing PokerGameControllerJava...");
         Gdx.app.log("PokerGameControllerJava", "initialize() called");
-        
+
         // Get room ID from session manager
         RoomInfo roomInfo = sessionManager.getAndClearPendingRoomInfo();
         if (roomInfo != null) {
@@ -84,17 +88,17 @@ public class PokerGameControllerJava implements ViewRenderer {
             logger.warn("No room info found in session manager");
             Gdx.app.log("PokerGameControllerJava", "WARNING: No room info found");
         }
-        
+
         // Use stage's viewport (don't create new one)
         if (stage != null) {
             viewport = stage.getViewport();
         } else {
             viewport = new FitViewport(RoyalFlushG.WIDTH, RoyalFlushG.HEIGHT);
         }
-        
+
         // Set input processor
         Gdx.input.setInputProcessor(stage);
-        
+
         // Get skin
         skin = UISkinManager.getInstance().getSkin();
         if (skin == null) {
@@ -102,17 +106,17 @@ public class PokerGameControllerJava implements ViewRenderer {
             Gdx.app.log("PokerGameControllerJava", "ERROR: Failed to load skin");
             return;
         }
-        
+
         // Create background
         createBackground();
-        
+
         // Create pause button (top-right)
         createPauseButton();
-        
+
         logger.info("PokerGameControllerJava initialized successfully");
         Gdx.app.log("PokerGameControllerJava", "Initialization complete");
     }
-    
+
     /**
      * Create background image
      */
@@ -130,7 +134,7 @@ public class PokerGameControllerJava implements ViewRenderer {
             logger.error("Failed to load background: {}", e.getMessage(), e);
         }
     }
-    
+
     /**
      * Create pause button (top-right corner)
      */
@@ -147,13 +151,12 @@ public class PokerGameControllerJava implements ViewRenderer {
             btnStyle.up = skin.getDrawable("panel1");
             pauseButton = new TextButton("||", btnStyle);
         }
-        
+
         pauseButton.setSize(60, 60);
         pauseButton.setPosition(
-            Gdx.graphics.getWidth() - pauseButton.getWidth() - 25,
-            Gdx.graphics.getHeight() - pauseButton.getHeight() - 25
-        );
-        
+                Gdx.graphics.getWidth() - pauseButton.getWidth() - 25,
+                Gdx.graphics.getHeight() - pauseButton.getHeight() - 25);
+
         pauseButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -161,26 +164,25 @@ public class PokerGameControllerJava implements ViewRenderer {
                 showPauseDialog();
             }
         });
-        
+
         stage.addActor(pauseButton);
         logger.info("Pause button created");
     }
-    
+
     /**
      * Show pause menu dialog
      */
     private void showPauseDialog() {
         Window.WindowStyle winStyle = new Window.WindowStyle(
-            skin.getFont("Blue_font"),
-            Color.WHITE,
-            skin.getDrawable("panel1")
-        );
-        
+                skin.getFont("Blue_font"),
+                Color.WHITE,
+                skin.getDrawable("panel1"));
+
         final Dialog dialog = new Dialog("", winStyle);
         dialog.pad(40);
-        
+
         Table content = dialog.getContentTable();
-        
+
         // Title
         Label.LabelStyle titleStyle = new Label.LabelStyle();
         titleStyle.font = skin.getFont("Blue_font");
@@ -188,7 +190,7 @@ public class PokerGameControllerJava implements ViewRenderer {
         Label title = new Label("PAUSED", titleStyle);
         title.setFontScale(1.5f);
         content.add(title).padBottom(30).row();
-        
+
         // Exit Lobby Button
         TextButton exitBtn = new TextButton("EXIT LOBBY", skin, "blue_text_button");
         exitBtn.getLabel().setFontScale(1.2f);
@@ -201,7 +203,7 @@ public class PokerGameControllerJava implements ViewRenderer {
             }
         });
         content.add(exitBtn).width(200).height(50).padBottom(15).row();
-        
+
         // Resume Button
         TextButton resumeBtn = new TextButton("RESUME", skin, "blue_text_button");
         resumeBtn.getLabel().setFontScale(1.2f);
@@ -212,10 +214,10 @@ public class PokerGameControllerJava implements ViewRenderer {
             }
         });
         content.add(resumeBtn).width(200).height(50);
-        
+
         dialog.show(stage);
     }
-    
+
     /**
      * Exit lobby - Send LeaveRoomRequest and navigate back to LobbyController
      */
@@ -227,11 +229,11 @@ public class PokerGameControllerJava implements ViewRenderer {
         } else {
             logger.warn("No room ID found, navigating to lobby anyway");
         }
-        
+
         // Navigate back to lobby
         interfaceService.show(LobbyController.class);
     }
-    
+
     /**
      * Dispose resources
      */

@@ -64,7 +64,10 @@ public class GameRoom {
     }
 
     public void broadcast(Object message) {
-        for (Connection connection : players.values()) {
+        // Copy values to avoid ConcurrentModificationException if player disconnects
+        // during broadcast
+        java.util.List<Connection> connections = new java.util.ArrayList<>(players.values());
+        for (Connection connection : connections) {
             if (connection != null) {
                 try {
                     connection.sendTCP(message);
@@ -158,10 +161,13 @@ public class GameRoom {
     /**
      * Get minimum players required to start the game.
      * 
-     * @return 3 for POKER, 4 for TIENLEN
+     * @return 2 for POKER (testing), 4 for TIENLEN
      */
     public int getMinPlayers() {
-        return "POKER".equals(gameType) ? 3 : 4;
+        if ("TIENLEN".equals(gameType)) {
+            return 4;
+        }
+        return 2;
     }
 
     /**

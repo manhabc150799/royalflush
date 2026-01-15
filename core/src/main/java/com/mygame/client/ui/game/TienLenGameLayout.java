@@ -409,6 +409,23 @@ public class TienLenGameLayout extends Table {
     }
 
     /**
+     * Set my active state (highlight my info).
+     */
+    public void setMyActive(boolean active) {
+        if (myInfoSection != null) {
+            if (active) {
+                myInfoSection.setColor(1f, 1f, 0.5f, 1f); // Yellow tint
+                if (myNameLabel != null)
+                    myNameLabel.setColor(Color.YELLOW);
+            } else {
+                myInfoSection.setColor(1f, 1f, 1f, 1f); // Reset
+                if (myNameLabel != null)
+                    myNameLabel.setColor(Color.WHITE);
+            }
+        }
+    }
+
+    /**
      * Set my hand cards.
      */
     public void setMyCards(List<Card> cards) {

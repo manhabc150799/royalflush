@@ -20,7 +20,7 @@ import java.util.List;
  * Cards on the right visually overlap cards on the left.
  * 
  * Interaction:
- * - Click a card: Translates Y +20px to indicate "selected"
+ * - Click a card: Translates Y +38px to indicate "selected"
  * - Click again: Deselects (returns to original Y)
  * 
  * Layout:
@@ -34,10 +34,11 @@ public class MyHandWidget extends Group {
     private static final String TAG = "MyHandWidget";
 
     // Layout constants
-    private static final float SELECTION_OFFSET_Y = 25f;
+    // 50% of card height (135 * 0.55 * 0.5 ~= 37f)
+    private static final float SELECTION_OFFSET_Y = 38f;
     private static final float MIN_OVERLAP = 35f; // Minimum visible portion per card
     private static final float PADDING = 10f;
-    private static final float CARD_SCALE = 0.55f; // Scale down cards to fit
+    private static final float CARD_SCALE = 0.7f; // Scale down cards to fit
 
     // Card data
     private List<CardActor> cardActors;
@@ -128,15 +129,11 @@ public class MyHandWidget extends Group {
         int count = cardActors.size();
 
         // Calculate overlap spacing
-        // Total space needed without overlap: count * cardW
-        // Available space: handWidth
-        // Overlap amount per card: (count * cardW - handWidth) / (count - 1)
         float totalNeededWidth = count * cardW;
         float overlapPerCard = 0;
 
         if (count > 1 && totalNeededWidth > handWidth) {
             overlapPerCard = (totalNeededWidth - handWidth) / (count - 1);
-            // Ensure minimum visibility
             float effectiveCardWidth = cardW - overlapPerCard;
             if (effectiveCardWidth < MIN_OVERLAP) {
                 overlapPerCard = cardW - MIN_OVERLAP;
@@ -145,7 +142,16 @@ public class MyHandWidget extends Group {
 
         float spacing = cardW - overlapPerCard;
         float totalWidth = spacing * (count - 1) + cardW;
-        float startX = (handWidth - totalWidth) / 2f; // Center the hand
+
+        // Shift right by 2 card lengths (~2 * 52px = 104px)
+        float centerOffset = (handWidth - totalWidth) / 2f;
+        float shiftRight = cardW * 2f;
+        float startX = centerOffset + shiftRight;
+
+        // Ensure we don't go off screen if hand is full
+        if (startX + totalWidth > handWidth) {
+            startX = handWidth - totalWidth; // Clamp to right edge if too wide
+        }
 
         // Position cards - later cards on top (higher Z-index)
         for (int i = 0; i < count; i++) {
@@ -185,7 +191,7 @@ public class MyHandWidget extends Group {
         cardActor.clearActions();
         cardActor.addAction(Actions.moveTo(cardActor.getX(), targetY, 0.15f, Interpolation.smooth));
 
-        Gdx.app.log(TAG, "Card " + index + " selected: " + cardActor.isSelected());
+        // Log removed
     }
 
     // ==================== PUBLIC API ====================
@@ -268,8 +274,8 @@ public class MyHandWidget extends Group {
             return;
         }
 
-        // Sort by Tien Len rank order
-        Collections.sort(cards, new TienLenCardComparator());
+        // Sort by Tien Len rank order using shared logic
+        com.mygame.shared.game.tienlen.CardCollection.sortHandTienLen(cards);
 
         // Rebuild card actors
         setCards(cards);

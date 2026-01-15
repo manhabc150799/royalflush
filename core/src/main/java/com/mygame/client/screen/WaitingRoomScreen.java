@@ -582,6 +582,7 @@ public class WaitingRoomScreen implements ViewRenderer {
                 sessionManager.setPendingGameType(packet.getGameType());
                 sessionManager.setPendingRoomId(packet.getRoomId());
                 sessionManager.setPendingRoomInfo(currentRoom); // Pass RoomInfo for player usernames
+                sessionManager.setPendingGameStartPacket(packet); // CRITICAL: Save init state
 
                 // Navigate via Autumn MVC - GameScreenController wraps pure Java GameScreen
                 interfaceService.show(GameScreenController.class);
@@ -729,9 +730,8 @@ public class WaitingRoomScreen implements ViewRenderer {
     }
 
     private int getMinPlayers() {
-        if (currentRoom == null || currentRoom.getGameType() == null)
-            return 2;
-        return (currentRoom.getGameType() == GameType.POKER) ? 3 : 4;
+        // Uniform minimum of 2 players
+        return 2;
     }
 
     /**

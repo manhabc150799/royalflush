@@ -4,6 +4,7 @@ import com.github.czyzby.autumn.annotation.Component;
 import com.mygame.shared.model.GameType;
 import com.mygame.shared.model.PlayerProfile;
 import com.mygame.shared.model.RoomInfo;
+import com.mygame.shared.network.packets.game.GameStartPacket;
 
 /**
  * SessionManager to store current player session data.
@@ -77,6 +78,18 @@ public class SessionManager {
 
     public void setPendingRoomInfo(RoomInfo roomInfo) {
         this.pendingRoomInfo = roomInfo;
+    }
+
+    private GameStartPacket pendingGameStartPacket;
+
+    public void setPendingGameStartPacket(GameStartPacket packet) {
+        this.pendingGameStartPacket = packet;
+    }
+
+    public GameStartPacket getAndClearPendingGameStartPacket() {
+        GameStartPacket result = pendingGameStartPacket;
+        pendingGameStartPacket = null;
+        return result;
     }
 
     // Pending room ID for game screen transition

@@ -66,5 +66,18 @@ public class Network {
         kryo.register(com.mygame.shared.network.packets.game.GameStartPacket.class);
         kryo.register(com.mygame.shared.network.packets.game.GameEndPacket.class);
         kryo.register(com.mygame.shared.network.packets.game.PlayerTurnPacket.class);
+
+        // Register game state classes for Poker
+        kryo.register(com.mygame.shared.game.poker.PokerGameState.class);
+        kryo.register(com.mygame.shared.game.poker.PokerGameState.Stage.class);
+        kryo.register(com.mygame.shared.game.poker.PokerGameState.SidePot.class);
+        kryo.register(com.mygame.shared.game.card.Card.class);
+        kryo.register(com.mygame.shared.game.card.Suit.class);
+        kryo.register(java.util.HashMap.class);
+        kryo.register(java.util.HashSet.class);
+
+        // Register game state classes for Tien Len
+        kryo.register(com.mygame.shared.game.tienlen.TienLenGameState.class);
+        kryo.register(com.mygame.shared.game.tienlen.TienLenCombinationType.class);
     }
 }

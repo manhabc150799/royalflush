@@ -119,14 +119,16 @@ public class TienLenPlayerWidget extends Table {
         this.isActive = active;
 
         if (active) {
-            // Highlight - use brighter background
-            setBackground(skin.getDrawable("hub3"));
+            // Highlight - use same panel but tint it yellow (like "Me" section)
+            setBackground(skin.getDrawable("panel1"));
+            setColor(1f, 1f, 0.5f, 1f);
             if (nameLabel != null) {
                 nameLabel.setColor(Color.YELLOW);
             }
         } else {
             // Normal state
             setBackground(skin.getDrawable("panel1"));
+            setColor(1f, 1f, 1f, 1f);
             if (nameLabel != null) {
                 nameLabel.setColor(Color.WHITE);
             }

@@ -40,6 +40,8 @@ public class ServerListener {
         this.questHandler = new QuestHandler(dbManager, connectionToUser);
         this.roomHandler = new com.mygame.server.handlers.RoomHandler(dbManager);
         this.gameSessionManager = new GameSessionManager(dbManager, roomHandler.getRoomManager());
+        // Wire GameSessionManager to RoomHandler for starting sessions
+        this.roomHandler.setGameSessionManager(this.gameSessionManager);
 
         // Setup login callback để lưu userId
         loginHandler.setLoginCallback((connection, userId) -> {

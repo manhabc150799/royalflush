@@ -9,11 +9,11 @@ import java.util.List;
  */
 public class Deck {
     private List<Card> cards;
-    
+
     public Deck() {
         initializeDeck();
     }
-    
+
     /**
      * Khởi tạo bộ bài 52 lá
      */
@@ -25,14 +25,14 @@ public class Deck {
             }
         }
     }
-    
+
     /**
      * Xáo bài
      */
     public void shuffle() {
-        Collections.shuffle(cards);
+        Collections.shuffle(cards, new java.util.Random());
     }
-    
+
     /**
      * Chia một lá bài
      */
@@ -42,33 +42,34 @@ public class Deck {
         }
         return cards.remove(0);
     }
-    
+
     /**
      * Chia nhiều lá bài
      */
     public List<Card> deal(int count) {
         List<Card> dealt = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            if (cards.isEmpty()) break;
+            if (cards.isEmpty())
+                break;
             dealt.add(deal());
         }
         return dealt;
     }
-    
+
     /**
      * Kiểm tra còn bài không
      */
     public boolean isEmpty() {
         return cards.isEmpty();
     }
-    
+
     /**
      * Số lá bài còn lại
      */
     public int remainingCards() {
         return cards.size();
     }
-    
+
     /**
      * Reset và xáo lại bài
      */
@@ -76,7 +77,7 @@ public class Deck {
         initializeDeck();
         shuffle();
     }
-    
+
     /**
      * Lấy tất cả cards (không xóa)
      */

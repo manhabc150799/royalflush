@@ -4,17 +4,33 @@ import com.mygame.shared.game.card.Card;
 import java.util.*;
 
 /**
- * Class quản lý state của Tiến Lên game
+ * Class quản lý state của Tiến Lên game.
+ * Tracks hands, current trick, turn, skipped players, and finish order.
  */
 public class TienLenGameState {
     private Map<Integer, List<Card>> playerHands; // userId -> hand (13 cards)
-    private List<Card> currentTrick; // Cards vừa được đánh
+    private List<Card> currentTrick; // Cards currently on board
     private TienLenCombinationType currentTrickType;
-    private int currentPlayerTurn;
-    private int lastPlayedPlayer; // Player vừa đánh
-    private List<Integer> playerOrder;
-    private Map<Integer, Boolean> playerFinished; // Player đã hết bài
-    
+    private int currentPlayerTurn; // Index in playerOrder
+    private int lastPlayedPlayer; // PlayerId who played the last valid set
+    private List<Integer> playerOrder; // List of playerIds in turn order
+    private Map<Integer, Boolean> playerFinished; // userId -> finished?
+
+    private Set<Integer> skippedPlayers; // Players who passed in current round
+    private List<Integer> winners; // Order of players who finished (1st, 2nd, 3rd...)
+    private Map<Integer, Long> playerCredits; // userId -> credits
+
+    // No-arg constructor for Kryo
+    public TienLenGameState() {
+        this.playerHands = new HashMap<>();
+        this.currentTrick = new ArrayList<>();
+        this.playerOrder = new ArrayList<>();
+        this.playerFinished = new HashMap<>();
+        this.skippedPlayers = new HashSet<>();
+        this.winners = new ArrayList<>();
+        this.playerCredits = new HashMap<>();
+    }
+
     public TienLenGameState(List<Integer> playerIds) {
         this.playerHands = new HashMap<>();
         this.currentTrick = new ArrayList<>();
@@ -23,137 +39,158 @@ public class TienLenGameState {
         this.lastPlayedPlayer = -1;
         this.playerOrder = new ArrayList<>(playerIds);
         this.playerFinished = new HashMap<>();
-        
+        this.skippedPlayers = new HashSet<>();
+        this.winners = new ArrayList<>();
+        this.playerCredits = new HashMap<>();
+
         for (Integer playerId : playerIds) {
             playerHands.put(playerId, new ArrayList<>());
             playerFinished.put(playerId, false);
+            playerCredits.put(playerId, 0L);
         }
     }
-    
+
+    public void setPlayerCredits(int playerId, long credits) {
+        playerCredits.put(playerId, credits);
+    }
+
+    public long getPlayerCredits(int playerId) {
+        return playerCredits.getOrDefault(playerId, 0L);
+    }
+
     /**
-     * Deal cards cho player
+     * Deal cards to a player.
      */
     public void dealHand(int playerId, List<Card> cards) {
         playerHands.put(playerId, new ArrayList<>(cards));
-        // Sort hand
-        sortHand(playerId);
+        CardCollection.sortHandTienLen(playerHands.get(playerId));
     }
-    
+
     /**
-     * Sort hand của player (theo rank value cho Tiến Lên)
+     * Start a new round (clear board and skipped status).
+     * Usually called when everyone skips or a Chop clears the round.
      */
-    public void sortHand(int playerId) {
-        List<Card> hand = playerHands.get(playerId);
-        if (hand != null) {
-            hand.sort((a, b) -> Integer.compare(
-                a.getRankValueForTienLen(),
-                b.getRankValueForTienLen()
-            ));
-        }
+    public void startNewRound() {
+        currentTrick.clear();
+        currentTrickType = null;
+        skippedPlayers.clear();
+        // lastPlayedPlayer remains keeping the winner of previous round context until
+        // they play
     }
-    
+
     /**
-     * Player đánh bài
+     * Attempt to play cards. Validates only if cards exist in hand.
+     * Logic for 'Can Beat' is in CardCollection, checked by Session.
+     * This method assumes move is Validated by Session.
      */
-    public boolean playCards(int playerId, List<Card> cards) {
+    public void playCards(int playerId, List<Card> cards, TienLenCombinationType type) {
         List<Card> hand = playerHands.get(playerId);
-        if (hand == null || !hand.containsAll(cards)) {
-            return false; // Không có cards này
-        }
-        
-        // Validate combination
-        TienLenCombinationType type = CardCollection.detectCombination(cards);
-        if (type == TienLenCombinationType.INVALID) {
-            return false;
-        }
-        
-        // Check có thể chặt được không
-        if (currentTrickType != null && !currentTrick.isEmpty()) {
-            if (!CardCollection.canBeat(currentTrickType, currentTrick, type, cards)) {
-                return false; // Không chặt được
-            }
-        }
-        
-        // Remove cards from hand
+        if (hand == null)
+            return;
+
         hand.removeAll(cards);
-        currentTrick = new ArrayList<>(cards);
+        currentTrick.clear();
+        currentTrick.addAll(cards);
         currentTrickType = type;
         lastPlayedPlayer = playerId;
-        
-        // Check win
+
+        // If hand empty, mark finished
         if (hand.isEmpty()) {
             playerFinished.put(playerId, true);
+            if (!winners.contains(playerId)) {
+                winners.add(playerId);
+            }
         }
-        
-        return true;
     }
-    
+
     /**
-     * Player bỏ lượt
+     * Player passes turn.
      */
-    public void skipTurn(int playerId) {
-        // Chỉ bỏ lượt được nếu có người đã đánh
-        if (lastPlayedPlayer >= 0 && lastPlayedPlayer != playerId) {
-            nextTurn();
-        }
+    public void passTurn(int playerId) {
+        skippedPlayers.add(playerId);
     }
-    
+
     /**
-     * Next turn
+     * Move to next valid player.
      */
     public void nextTurn() {
-        currentPlayerTurn = (currentPlayerTurn + 1) % playerOrder.size();
-        
-        // Nếu đã hết một vòng và không ai chặt được, clear trick
-        if (currentPlayerTurn == lastPlayedPlayer || 
-            (lastPlayedPlayer >= 0 && currentPlayerTurn == (lastPlayedPlayer + 1) % playerOrder.size() && 
-             currentPlayerTurn == 0)) {
-            // Clear trick nếu đã hết vòng
-            if (currentPlayerTurn == 0 && lastPlayedPlayer >= 0) {
-                currentTrick.clear();
-                currentTrickType = null;
-                lastPlayedPlayer = -1;
+        if (playerOrder.isEmpty())
+            return;
+
+        int startTurn = currentPlayerTurn;
+        int size = playerOrder.size();
+
+        do {
+            currentPlayerTurn = (currentPlayerTurn + 1) % size;
+            int pid = playerOrder.get(currentPlayerTurn);
+
+            // Player valid if: NOT finished AND NOT skipped
+            // (Exception: 4-pair chop logic handles 'skipped' override in Session, not
+            // here)
+            if (!playerFinished.getOrDefault(pid, false) && !skippedPlayers.contains(pid)) {
+                return; // Found next player
             }
-        }
-    }
-    
-    /**
-     * Check có player nào thắng chưa
-     */
-    public Integer getWinner() {
-        for (Map.Entry<Integer, Boolean> entry : playerFinished.entrySet()) {
-            if (entry.getValue()) {
-                return entry.getKey();
+
+            // Emergency break if loop full circle (should trigger round end before this)
+            if (currentPlayerTurn == startTurn) {
+                return;
             }
-        }
-        return null;
+        } while (currentPlayerTurn != startTurn);
     }
-    
-    // Getters
+
+    // --- Getters & Setters ---
+
     public List<Card> getPlayerHand(int playerId) {
-        return new ArrayList<>(playerHands.getOrDefault(playerId, new ArrayList<>()));
+        return playerHands.get(playerId);
     }
-    
+
     public List<Card> getCurrentTrick() {
-        return new ArrayList<>(currentTrick);
+        return currentTrick;
     }
-    
+
     public TienLenCombinationType getCurrentTrickType() {
         return currentTrickType;
     }
-    
-    public int getCurrentPlayerTurn() {
-        return currentPlayerTurn;
-    }
-    
+
     public int getCurrentPlayerId() {
-        if (currentPlayerTurn >= 0 && currentPlayerTurn < playerOrder.size()) {
-            return playerOrder.get(currentPlayerTurn);
-        }
-        return -1;
+        if (playerOrder == null || playerOrder.isEmpty())
+            return -1;
+        return playerOrder.get(currentPlayerTurn);
     }
-    
+
+    public int getLastPlayedPlayer() {
+        return lastPlayedPlayer;
+    }
+
+    public void setLastPlayedPlayer(int id) {
+        this.lastPlayedPlayer = id;
+    }
+
+    public boolean isSkipped(int playerId) {
+        return skippedPlayers.contains(playerId);
+    }
+
+    public Set<Integer> getSkippedPlayers() {
+        return skippedPlayers;
+    }
+
     public boolean isPlayerFinished(int playerId) {
         return playerFinished.getOrDefault(playerId, false);
+    }
+
+    public List<Integer> getWinners() {
+        return winners;
+    }
+
+    public List<Integer> getPlayerOrder() {
+        return playerOrder;
+    }
+
+    public void setCurrentPlayerTurn(int index) {
+        this.currentPlayerTurn = index;
+    }
+
+    public int getCurrentPlayerTurn() {
+        return currentPlayerTurn;
     }
 }

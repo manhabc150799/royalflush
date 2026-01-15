@@ -234,14 +234,10 @@ public class PlayerSeatWidget extends Table {
     public void setCurrentTurn(boolean isTurn) {
         this.isCurrentTurn = isTurn;
 
-        if (isTurn) {
-            setBackground(skin.getDrawable("hub3")); // Highlighted background
-            if (nameLabel != null)
-                nameLabel.setColor(Color.YELLOW);
-        } else {
-            setBackground(skin.getDrawable("panel1"));
-            if (nameLabel != null)
-                nameLabel.setColor(Color.WHITE);
+        // Use same panel1 background for all, just highlight name color
+        setBackground(skin.getDrawable("panel1"));
+        if (nameLabel != null) {
+            nameLabel.setColor(isTurn ? Color.YELLOW : Color.WHITE);
         }
     }
 

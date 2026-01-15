@@ -35,7 +35,7 @@ import com.mygame.shared.model.RoomInfo;
 public class TienLenGameScreen implements Screen {
 
     private static final String TAG = "TienLenGameScreen";
-    private static final String BACKGROUND_PATH = "ui/Background_tienlen.png";
+    private static final String BACKGROUND_PATH = "ui/Background_poker.png";
 
     // Stage and UI
     private Stage stage;
@@ -257,8 +257,15 @@ public class TienLenGameScreen implements Screen {
         // Highlight active player
         gameLayout.setActivePlayer(playerId);
 
+        // Highlight MY INFO if it is my turn
+        gameLayout.setMyActive(isMyTurn);
+
         // Enable/disable buttons based on turn
         gameLayout.setButtonsEnabled(isMyTurn);
+
+        if (isMyTurn) {
+            showWarningToast("Your Turn!");
+        }
     }
 
     /**
@@ -295,6 +302,8 @@ public class TienLenGameScreen implements Screen {
      * Called when PLAY button is clicked.
      */
     private void onPlayCards() {
+        Gdx.app.log(TAG, "onPlayCards clicked. isMyTurn=" + isMyTurn + ", currentTurn=" + currentTurnPlayerId);
+
         if (!isMyTurn) {
             showWarningToast("Not your turn!");
             return;
@@ -303,6 +312,15 @@ public class TienLenGameScreen implements Screen {
         List<Card> selected = gameLayout.getSelectedCards();
         if (selected.isEmpty()) {
             showWarningToast("Select cards first!");
+            return;
+        }
+
+        // Validate combination
+        com.mygame.shared.game.tienlen.TienLenCombinationType type = com.mygame.shared.game.tienlen.CardCollection
+                .detectCombination(selected);
+
+        if (type == com.mygame.shared.game.tienlen.TienLenCombinationType.INVALID) {
+            showWarningToast("Invalid Combination!");
             return;
         }
 
@@ -386,14 +404,35 @@ public class TienLenGameScreen implements Screen {
         if (state instanceof TienLenGameState) {
             TienLenGameState tienLenState = (TienLenGameState) state;
             for (int pid : playerOrder) {
-                names.put(pid, "Player " + pid); // TODO: get from RoomInfo
-                balances.put(pid, 1000L); // Default, TienLenGameState may not have balance
+                // Get name from RoomInfo if possible
+                String name = "Player " + pid;
+                long balance = tienLenState.getPlayerCredits(pid); // Read correct balance
+
+                if (roomInfo != null && roomInfo.getPlayers() != null) {
+                    for (com.mygame.shared.model.RoomInfo.RoomPlayerInfo p : roomInfo.getPlayers()) {
+                        if (p.getUserId() == pid) {
+                            name = p.getUsername();
+                            // If GameState has 0 (not synced?), fallback to RoomInfo
+                            if (balance == 0 && p.getBalance() > 0) {
+                                balance = p.getBalance();
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                names.put(pid, name);
+                balances.put(pid, balance);
             }
             // Deal cards to local player
             List<Card> myCards = tienLenState.getPlayerHand(localPlayerId);
             if (myCards != null && !myCards.isEmpty()) {
                 dealMyCards(myCards);
             }
+
+            // CHECKPOINT: Sync initial state to set turn immediately
+            syncTienLenState(tienLenState);
+
         } else {
             for (int pid : playerOrder) {
                 names.put(pid, "Player " + pid);
@@ -418,13 +457,21 @@ public class TienLenGameScreen implements Screen {
         if (state == null)
             return;
 
+        // Log current state
+        Gdx.app.log(TAG, "Syncing state. Turn: " + state.getCurrentPlayerId());
+
         // Update current trick display
         List<Card> trick = state.getCurrentTrick();
         if (trick != null && !trick.isEmpty()) {
-            // Note: TienLenGameState doesn't expose lastPlayedPlayer, use generic label
-            showPlayedCards(state.getCurrentPlayerId(), trick);
+            showPlayedCards(state.getLastPlayedPlayer(), trick);
         } else {
             clearPlayedCards();
+        }
+
+        // CHECKPOINT: Sync my own hand (Fixes "disappearing cards" on rejected move)
+        List<Card> myHand = state.getPlayerHand(localPlayerId);
+        if (myHand != null) {
+            gameLayout.setMyCards(myHand);
         }
 
         // Update rival card counts
@@ -513,7 +560,7 @@ public class TienLenGameScreen implements Screen {
 
         // Update hand width on resize
         if (gameLayout != null && gameLayout.getMyHandWidget() != null) {
-            gameLayout.getMyHandWidget().setHandWidth(width * 0.85f);
+            gameLayout.getMyHandWidget().setHandWidth(width * 0.95f);
         }
     }
 

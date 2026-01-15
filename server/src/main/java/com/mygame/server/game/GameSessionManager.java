@@ -90,13 +90,10 @@ public class GameSessionManager {
         sessionStartTimes.put(roomId, Instant.now());
         room.setStatus("PLAYING");
 
-        // Broadcast GameStartPacket + snapshot ban đầu
-        GameStartPacket startPacket = new GameStartPacket();
-        startPacket.setRoomId(roomId);
-        startPacket.setGameType(gameType);
-        startPacket.setPlayerOrder(playerIds);
-        startPacket.setInitialState(session.buildGameStatePacket().getGameState());
-        room.broadcast(startPacket);
+        // Note: Game sessions (PokerGameSession, TienLenGameSession) already broadcast
+        // GameStartPacket with per-player sanitized state in their
+        // constructor/startNewHand.
+        // We don't need to broadcast here.
 
         logger.info("Đã start session {} cho room {} ({})", session.getClass().getSimpleName(), roomId, gameType);
         return session;
@@ -151,26 +148,17 @@ public class GameSessionManager {
         List<Integer> playerIds = new ArrayList<>(room.getPlayerPositions().keySet());
         List<Long> creditChanges = new ArrayList<>();
 
-        // Chính sách thưởng/phạt rất đơn giản: winner +1000, mỗi người thua -500.
+        // Get actual credit changes from the game session
+        Map<Integer, Long> sessionCreditChanges = session.getCreditChanges();
+
         for (int playerId : playerIds) {
-            long delta = (playerId == winnerId) ? 1_000L : -500L;
+            long delta = sessionCreditChanges.getOrDefault(playerId, 0L);
             creditChanges.add(delta);
             try {
-                userDAO.updateCredits(playerId, delta);
-                // Note: Stats (wins/losses) can be calculated from match_history if needed
-
-                String result = (playerId == winnerId) ? "WIN" : "LOSE";
-                int opponentCount = playerIds.size() - 1;
-                int durationSeconds = calculateDurationSeconds(roomId);
-
-                matchHistoryDAO.saveMatch(
-                        playerId,
-                        gameType.name(),
-                        MatchMode.MULTIPLAYER.name(),
-                        result,
-                        delta,
-                        opponentCount,
-                        durationSeconds);
+                if (delta != 0) {
+                    userDAO.updateCredits(playerId, delta);
+                    logger.debug("Updated credits for player {}: {}", playerId, delta);
+                }
             } catch (SQLException e) {
                 logger.error("Lỗi khi cập nhật kết quả ván cho user {}: {}", playerId, e.getMessage(), e);
             }

@@ -72,7 +72,7 @@ public class LobbyController implements ViewRenderer {
 
     // Auto-refresh timer for lobby list
     private float lobbyRefreshTimer = 0f;
-    private static final float LOBBY_REFRESH_INTERVAL = 0.5f; // Refresh every 0.5 seconds
+    private static final float LOBBY_REFRESH_INTERVAL = 2.0f; // Refresh every 2.0 seconds
 
     // Custom Label Styles
     private Label.LabelStyle transparentStyle;

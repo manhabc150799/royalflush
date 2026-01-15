@@ -3,14 +3,14 @@ package com.mygame.client.ui.game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Interpolation;
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.InputEvent;
-import com.badlogic.gdx.scenes.scene2d.InputListener;
+import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.actions.Actions;
-import com.mygame.client.ui.UISkinManager;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.mygame.shared.game.card.Card;
 
 import java.util.HashMap;
@@ -19,24 +19,21 @@ import java.util.Map;
 /**
  * CardActor - Scene2D Actor to display a playing card.
  * 
- * Loads card textures from PNG files in images/cards/light/ directory.
- * Uses static texture cache to avoid loading same texture multiple times.
- * 
- * File naming convention: {rank}-{SUIT}.png where SUIT is uppercase C/D/H/P
- * Examples: 10-H.png (10 of Hearts), A-P.png (Ace of Spades), BACK.png (card
- * back)
+ * Refactored to extend Group as requested:
+ * - Layer 1: Image (PNG background)
+ * - Layer 2: Invisible Actor (Overlay for hit detection)
  */
-public class CardActor extends Actor {
+public class CardActor extends Group {
 
-    // Card dimensions (fits well on screen)
+    // Card dimensions
     public static final float CARD_WIDTH = 95f;
     public static final float CARD_HEIGHT = 135f;
-    public static final float SELECTION_OFFSET = 25f;
+    public static final float SELECTION_OFFSET = 38f; // Matches MyHandWidget config
 
     // Path to card images
     private static final String CARD_PATH = "images/cards/light/";
 
-    // Static texture cache to avoid reloading
+    // Static texture cache
     private static final Map<String, Texture> textureCache = new HashMap<>();
     private static Texture backTexture = null;
 
@@ -45,110 +42,88 @@ public class CardActor extends Actor {
     private boolean selected;
     private boolean selectable;
 
-    private TextureRegion faceRegion;
-    private TextureRegion backRegion;
+    // UI Components
+    private Image cardImage;
+    private Actor touchOverlay;
 
+    // State
     private float originalY;
     private boolean initialized = false;
 
-    /**
-     * Create a CardActor displaying the given card.
-     *
-     * @param card   The card data from shared module
-     * @param faceUp Whether to show face (true) or back (false)
-     */
     public CardActor(Card card, boolean faceUp) {
         this.card = card;
         this.faceUp = faceUp;
         this.selected = false;
         this.selectable = false;
 
-        // Load textures from PNG files
-        loadTextures();
+        // Initialize Group settings
+        setTransform(false); // Optimization, set to true if rotation needed
 
-        // Set size
+        // 1. Create Card Image (Background)
+        cardImage = new Image();
+        cardImage.setSize(CARD_WIDTH, CARD_HEIGHT);
+        updateCardTexture(); // Load texture
+        addActor(cardImage);
+
+        // 2. Create Invisible Touch Overlay (Top Layer)
+        touchOverlay = new Actor();
+        touchOverlay.setSize(CARD_WIDTH, CARD_HEIGHT);
+        touchOverlay.setTouchable(Touchable.enabled); // Ensures this catches events
+        // touchOverlay.debug(); // Uncomment to see debug lines
+        addActor(touchOverlay);
+
+        // Set Group size
         setSize(CARD_WIDTH, CARD_HEIGHT);
 
-        // Add click listener for selection toggle
-        addListener(new InputListener() {
-            @Override
-            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                if (selectable && CardActor.this.faceUp) {
-                    toggleSelection();
-                    return true;
-                }
-                return false;
-            }
-        });
+        // Note: Internal InputListener REMOVED to avoid conflict with MyHandWidget
     }
 
-    /**
-     * Create a face-down card (for opponent display).
-     */
     public CardActor() {
         this(null, false);
     }
 
-    /**
-     * Load textures from PNG files in images/cards/light/.
-     */
-    private void loadTextures() {
-        // Load back texture (cached)
-        if (backTexture == null) {
-            try {
-                backTexture = new Texture(Gdx.files.internal(CARD_PATH + "BACK.png"));
-                backTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-            } catch (Exception e) {
-                Gdx.app.error("CardActor", "Failed to load BACK.png", e);
-            }
-        }
-        if (backTexture != null) {
-            backRegion = new TextureRegion(backTexture);
-        }
+    private void updateCardTexture() {
+        Texture textureToUse = null;
 
-        // Load face texture if card is set
-        if (card != null) {
-            String filename = getRegionName(card) + ".png"; // Append .png as helper returns base name
-            Gdx.app.log("CardActor", "Requesting texture: " + filename); // DEBUG
-            Texture faceTexture = textureCache.get(filename);
-
-            if (faceTexture == null) {
+        if (!faceUp || card == null) {
+            // Load Back
+            if (backTexture == null) {
                 try {
-                    faceTexture = new Texture(Gdx.files.internal(CARD_PATH + filename));
-                    faceTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-                    textureCache.put(filename, faceTexture);
+                    backTexture = new Texture(Gdx.files.internal(CARD_PATH + "BACK.png"));
+                    backTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+                } catch (Exception e) {
+                    Gdx.app.error("CardActor", "Failed to load BACK.png", e);
+                }
+            }
+            textureToUse = backTexture;
+        } else {
+            // Load Face
+            String filename = getRegionName(card) + ".png";
+            textureToUse = textureCache.get(filename);
+
+            if (textureToUse == null) {
+                try {
+                    textureToUse = new Texture(Gdx.files.internal(CARD_PATH + filename));
+                    textureToUse.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+                    textureCache.put(filename, textureToUse);
                 } catch (Exception e) {
                     Gdx.app.error("CardActor", "Failed to load " + filename, e);
                 }
             }
+        }
 
-            if (faceTexture != null) {
-                faceRegion = new TextureRegion(faceTexture);
-            }
+        if (textureToUse != null) {
+            cardImage.setDrawable(new TextureRegionDrawable(new TextureRegion(textureToUse)));
         }
     }
 
-    /**
-     * Get the filename for a card image.
-     * Format: {rank}-{suit}.png
-     * Face cards: J, Q, K, A
-     */
-    /**
-     * Get the region name for a card image matching asset convention.
-     * Format: {rank}-{suit} (e.g. "T-H", "A-P", "2-D")
-     * Returns "BACK" for hidden/null cards.
-     */
     private String getRegionName(Card card) {
-        if (card == null) {
+        if (card == null)
             return "BACK";
-        }
 
         int rank = card.getRank();
         String rankStr;
         switch (rank) {
-            case 10:
-                rankStr = "T";
-                break;
             case 11:
                 rankStr = "J";
                 break;
@@ -182,63 +157,63 @@ public class CardActor extends Actor {
                 break;
             default:
                 suitStr = "P";
-                break; // Default fallback
+                break;
         }
 
         return rankStr + "-" + suitStr;
     }
 
     @Override
-    public void draw(Batch batch, float parentAlpha) {
-        if (!initialized) {
-            originalY = getY();
-            initialized = true;
-        }
-
-        TextureRegion region = faceUp && faceRegion != null ? faceRegion : backRegion;
-
-        if (region != null) {
-            batch.setColor(getColor().r, getColor().g, getColor().b, getColor().a * parentAlpha);
-            batch.draw(region, getX(), getY(), getOriginX(), getOriginY(),
-                    getWidth(), getHeight(), getScaleX(), getScaleY(), getRotation());
-        }
+    public void setSize(float width, float height) {
+        super.setSize(width, height);
+        if (cardImage != null)
+            cardImage.setSize(width, height);
+        if (touchOverlay != null)
+            touchOverlay.setSize(width, height);
     }
 
-    /**
-     * Toggle card selection state (for Tien Len).
-     */
-    public void toggleSelection() {
-        if (!selectable)
-            return;
-
-        selected = !selected;
-
-        // Animate up/down
-        clearActions();
-        float targetY = selected ? originalY + SELECTION_OFFSET : originalY;
-        addAction(Actions.moveTo(getX(), targetY, 0.15f, Interpolation.smooth));
-    }
+    // ==================== SELECTION LOGIC ====================
 
     /**
-     * Set selection state without animation.
+     * Set selection state.
+     * Controlled externally by MyHandWidget.
      */
     public void setSelected(boolean selected) {
         if (this.selected == selected)
             return;
         this.selected = selected;
 
-        if (initialized) {
-            float targetY = selected ? originalY + SELECTION_OFFSET : originalY;
-            setY(targetY);
-        }
+        // Visual pop-up logic handled by MyHandWidget animations mostly,
+        // but we can ensure state consistency here.
     }
 
-    /**
-     * Flip the card face up or face down with animation.
-     */
-    public void flip(boolean faceUp) {
+    public boolean isSelected() {
+        return selected;
+    }
+
+    public void setSelectable(boolean selectable) {
+        this.selectable = selectable;
+    }
+
+    // ==================== GETTERS/SETTERS ====================
+
+    public Card getCard() {
+        return card;
+    }
+
+    public void setCard(Card card) {
+        this.card = card;
+        updateCardTexture();
+    }
+
+    public void setFaceUp(boolean faceUp) {
         this.faceUp = faceUp;
-        // Could add flip animation here using scaleX
+        updateCardTexture();
+    }
+
+    // Legacy methods kept for compatibility with animations if needed
+    public void updateOriginalY() {
+        // Managed by MyHandWidget layout
     }
 
     /**
@@ -271,55 +246,16 @@ public class CardActor extends Actor {
                 })));
     }
 
-    // Getters and Setters
-
-    public Card getCard() {
-        return card;
-    }
-
-    public void setCard(Card card) {
-        this.card = card;
-        loadTextures();
-    }
-
-    public boolean isFaceUp() {
-        return faceUp;
-    }
-
-    public void setFaceUp(boolean faceUp) {
-        this.faceUp = faceUp;
-    }
-
-    public boolean isSelected() {
-        return selected;
-    }
-
-    public boolean isSelectable() {
-        return selectable;
-    }
-
-    public void setSelectable(boolean selectable) {
-        this.selectable = selectable;
-    }
-
     /**
      * Deselect and reset position.
      */
     public void resetSelection() {
         if (selected) {
             selected = false;
-            if (initialized) {
-                clearActions();
-                addAction(Actions.moveTo(getX(), originalY, 0.15f, Interpolation.smooth));
-            }
+            // Only animate return if we have a valid originalY
+            // (initialized implicitly by being in layout)
+            clearActions();
+            addAction(Actions.moveTo(getX(), originalY, 0.15f, Interpolation.smooth));
         }
-    }
-
-    /**
-     * Update original Y position (call after positioning).
-     */
-    public void updateOriginalY() {
-        originalY = getY();
-        initialized = true;
     }
 }

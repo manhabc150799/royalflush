@@ -24,6 +24,7 @@ public class RoomHandler {
     private static final Logger logger = LoggerFactory.getLogger(RoomHandler.class);
     private final GameRoomManager roomManager;
     private final UserDAO userDAO;
+    private com.mygame.server.game.GameSessionManager gameSessionManager;
 
     // Map connection -> userId
     private final Map<Connection, Integer> connectionToUser = new ConcurrentHashMap<>();
@@ -31,6 +32,13 @@ public class RoomHandler {
     public RoomHandler(DatabaseManager dbManager) {
         this.roomManager = new GameRoomManager(dbManager);
         this.userDAO = new UserDAO(dbManager);
+    }
+
+    /**
+     * Set the GameSessionManager for starting game sessions.
+     */
+    public void setGameSessionManager(com.mygame.server.game.GameSessionManager manager) {
+        this.gameSessionManager = manager;
     }
 
     public void setUserId(Connection connection, int userId) {
@@ -269,15 +277,25 @@ public class RoomHandler {
             return;
         }
 
-        // Start the game
-        room.setStatus("PLAYING");
+        // Start the game session using GameSessionManager
+        // This creates the session and broadcasts GameStartPacket with proper state
+        if (gameSessionManager != null) {
+            logger.info("Starting game session for room {}...", room.getRoomId());
+            GameType gameType = GameType.valueOf(room.getGameType());
+            com.mygame.server.game.GameSession session = gameSessionManager.startSessionIfAbsent(
+                    room.getRoomId(), gameType);
 
-        // Broadcast GameStartPacket to all players
-        com.mygame.shared.network.packets.game.GameStartPacket gameStart = new com.mygame.shared.network.packets.game.GameStartPacket();
-        gameStart.setRoomId(room.getRoomId());
-        gameStart.setGameType(GameType.valueOf(room.getGameType()));
-        gameStart.setPlayerOrder(new ArrayList<>(room.getPlayers().keySet()));
-        room.broadcast(gameStart);
+            if (session != null) {
+                logger.info("Deck shuffled. Dealing cards... (Session Started)");
+            } else {
+                sendError(connection, new StartGameResponse(), "Failed to create game session");
+                return;
+            }
+        } else {
+            logger.error("GameSessionManager not set!");
+            sendError(connection, new StartGameResponse(), "Internal server error");
+            return;
+        }
 
         // Send success response to host
         StartGameResponse response = new StartGameResponse(true, null);

@@ -57,12 +57,14 @@ public class PokerTableLayout extends Table {
 
     // Control panel
     private Table controlPanel;
-    private Slider betSlider;
-    private Label betAmountLabel;
+    private TextField betInput;
     private TextButton checkButton;
     private TextButton callButton;
     private TextButton raiseButton;
     private TextButton foldButton;
+
+    private long minRaiseAmount = 0;
+    private long maxRaiseAmount = 0;
 
     // Callbacks for button actions
     private Runnable onCheckAction;
@@ -277,54 +279,15 @@ public class PokerTableLayout extends Table {
         panel.setBackground(skin.getDrawable("panel1"));
         panel.pad(10);
 
-        // === Slider row ===
-        Table sliderRow = new Table();
+        // === Input row (just the TextField) ===
+        // Use text_field_login style from skin
+        betInput = new TextField("", skin, "text_field_login");
+        betInput.setMessageText("Raise $");
+        betInput.setAlignment(Align.center);
+        // Clean input to only allow numbers
+        betInput.setTextFieldFilter(new TextField.TextFieldFilter.DigitsOnlyFilter());
 
-        // Minus button
-        ImageButton minusBtn = createIconButton("btn_minus1", "btn_minus2");
-        minusBtn.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                adjustBet(-100);
-            }
-        });
-
-        // Bet slider
-        betSlider = new Slider(0, 10000, 100, false, skin);
-        betSlider.setValue(0);
-        betSlider.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                updateBetLabel();
-            }
-        });
-
-        // Plus button
-        ImageButton plusBtn = createIconButton("btn_plus1", "btn_plus2");
-        plusBtn.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                adjustBet(100);
-            }
-        });
-
-        sliderRow.add(minusBtn).size(40, 40);
-        sliderRow.add(betSlider).width(150).padLeft(8).padRight(8);
-        sliderRow.add(plusBtn).size(40, 40);
-
-        panel.add(sliderRow);
-        panel.row();
-
-        // Bet amount label
-        Label.LabelStyle amountStyle = new Label.LabelStyle();
-        amountStyle.font = skin.getFont("Blue_font");
-        amountStyle.fontColor = Color.GOLD;
-
-        betAmountLabel = new Label("$0", amountStyle);
-        betAmountLabel.setFontScale(0.9f);
-        betAmountLabel.setAlignment(Align.center);
-
-        panel.add(betAmountLabel).padTop(2).padBottom(8);
+        panel.add(betInput).width(140).height(40).padBottom(10);
         panel.row();
 
         // === Button row ===
@@ -366,9 +329,7 @@ public class PokerTableLayout extends Table {
         raiseButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                if (onRaiseAction != null) {
-                    onRaiseAction.onRaise((long) betSlider.getValue());
-                }
+                handleRaiseClick();
             }
         });
 
@@ -388,6 +349,43 @@ public class PokerTableLayout extends Table {
         panel.add(buttonRow2);
 
         return panel;
+    }
+
+    private void handleRaiseClick() {
+        if (onRaiseAction == null)
+            return;
+
+        try {
+            String text = betInput.getText();
+            if (text == null || text.isEmpty()) {
+                Gdx.app.log(TAG, "Raise amount empty");
+                return;
+            }
+
+            long amount = Long.parseLong(text);
+
+            // Validate against max credit (user chips)
+            if (amount > maxRaiseAmount) {
+                amount = maxRaiseAmount;
+                betInput.setText(String.valueOf(amount));
+            }
+            // Validate against min raise
+            if (amount < minRaiseAmount) {
+                // If they have enough to cover min raise, force min raise
+                // If they are all-in (amount < min but == max), allow it
+                if (maxRaiseAmount >= minRaiseAmount) {
+                    amount = minRaiseAmount;
+                } else {
+                    amount = maxRaiseAmount; // All-in case
+                }
+                betInput.setText(String.valueOf(amount));
+            }
+
+            onRaiseAction.onRaise(amount);
+
+        } catch (NumberFormatException e) {
+            Gdx.app.error(TAG, "Invalid raise amount: " + betInput.getText());
+        }
     }
 
     /**
@@ -484,13 +482,14 @@ public class PokerTableLayout extends Table {
     }
 
     /**
-     * Set slider range.
+     * Set allowed raise range.
      */
-    public void setSliderRange(float min, float max) {
-        if (betSlider != null) {
-            betSlider.setRange(min, max);
-            betSlider.setValue(min);
-            updateBetLabel();
+    public void setRaiseLimits(long min, long max) {
+        this.minRaiseAmount = min;
+        this.maxRaiseAmount = max;
+        // Pre-fill with min raise if empty
+        if (betInput != null && betInput.getText().isEmpty()) {
+            betInput.setText(String.valueOf(min));
         }
     }
 
@@ -552,22 +551,6 @@ public class PokerTableLayout extends Table {
 
     public void setOnRaiseAction(RaiseCallback action) {
         this.onRaiseAction = action;
-    }
-
-    // ==================== PRIVATE HELPERS ====================
-
-    private void adjustBet(int delta) {
-        float current = betSlider.getValue();
-        float newValue = Math.max(betSlider.getMinValue(),
-                Math.min(betSlider.getMaxValue(), current + delta));
-        betSlider.setValue(newValue);
-        updateBetLabel();
-    }
-
-    private void updateBetLabel() {
-        if (betAmountLabel != null) {
-            betAmountLabel.setText("$" + NUMBER_FORMAT.format((long) betSlider.getValue()));
-        }
     }
 
     /**

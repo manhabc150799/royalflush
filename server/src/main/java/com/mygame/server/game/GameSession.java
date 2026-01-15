@@ -60,4 +60,10 @@ public abstract class GameSession {
      * Trả về userId thắng ván (nếu đã có), -1 nếu chưa xác định.
      */
     public abstract int getWinnerId();
+
+    /**
+     * Get credit changes for each player (profit/loss from initial chips).
+     * Positive = won, Negative = lost
+     */
+    public abstract java.util.Map<Integer, Long> getCreditChanges();
 }

@@ -5,8 +5,14 @@ package com.mygame.shared.game.card;
  * Rank: 2-14 (2-10, 11=J, 12=Q, 13=K, 14=A)
  */
 public class Card implements Comparable<Card> {
-    private final int rank; // 2-14
-    private final Suit suit;
+    private int rank; // 2-14
+    private Suit suit;
+
+    /**
+     * No-arg constructor for Kryo serialization.
+     */
+    public Card() {
+    }
 
     public Card(int rank, Suit suit) {
         if (rank < 2 || rank > 14) {
@@ -30,11 +36,53 @@ public class Card implements Comparable<Card> {
     public int getRankValueForTienLen() {
         if (rank == 3)
             return 1;
-        if (rank == 2)
-            return 13; // 2 là cao nhất
+        if (rank == 4)
+            return 2;
+        if (rank == 5)
+            return 3;
+        if (rank == 6)
+            return 4;
+        if (rank == 7)
+            return 5;
+        if (rank == 8)
+            return 6;
+        if (rank == 9)
+            return 7;
+        if (rank == 10)
+            return 8;
+        if (rank == 11)
+            return 9; // J
+        if (rank == 12)
+            return 10; // Q
+        if (rank == 13)
+            return 11; // K
         if (rank == 14)
             return 12; // A
-        return rank - 2; // 4=2, 5=3, ..., K=11
+        if (rank == 2)
+            return 13; // 2
+        return 0; // Should not happen
+    }
+
+    /**
+     * Get suit value for Tien Len (Spades < Clubs < Diamonds < Hearts)
+     * Spades (P) = 1
+     * Clubs (C) = 2
+     * Diamonds (D) = 3
+     * Hearts (H) = 4
+     */
+    public int getSuitValueForTienLen() {
+        switch (suit) {
+            case SPADES:
+                return 1;
+            case CLUBS:
+                return 2;
+            case DIAMONDS:
+                return 3;
+            case HEARTS:
+                return 4;
+            default:
+                return 0;
+        }
     }
 
     /**

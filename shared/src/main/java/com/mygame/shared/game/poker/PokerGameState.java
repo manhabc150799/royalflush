@@ -29,6 +29,53 @@ public class PokerGameState {
     private int smallBlind;
     private int bigBlind;
     private long lastRaiseAmount; // For min-raise tracking
+    private Map<Integer, Long> totalContributions = new HashMap<>(); // Track total bet per player in entire hand
+    private List<SidePot> sidePots = new ArrayList<>(); // Side pots for all-in scenarios
+
+    /**
+     * Represents a pot (main or side) with amount and eligible players.
+     */
+    public static class SidePot {
+        private long amount;
+        private Set<Integer> eligiblePlayers;
+
+        public SidePot() {
+            this.eligiblePlayers = new HashSet<>();
+        }
+
+        public SidePot(long amount, Set<Integer> eligiblePlayers) {
+            this.amount = amount;
+            this.eligiblePlayers = new HashSet<>(eligiblePlayers);
+        }
+
+        public long getAmount() {
+            return amount;
+        }
+
+        public void setAmount(long amount) {
+            this.amount = amount;
+        }
+
+        public Set<Integer> getEligiblePlayers() {
+            return eligiblePlayers;
+        }
+
+        public void setEligiblePlayers(Set<Integer> players) {
+            this.eligiblePlayers = players;
+        }
+    }
+
+    /**
+     * No-arg constructor for Kryo serialization.
+     */
+    public PokerGameState() {
+        this.currentStage = Stage.PREFLOP;
+        this.communityCards = new ArrayList<>();
+        this.playerHoles = new HashMap<>();
+        this.playerChips = new HashMap<>();
+        this.playerBets = new HashMap<>();
+        this.playerFolded = new HashMap<>();
+    }
 
     public PokerGameState(List<Integer> playerIds, long startingChips, int smallBlind, int bigBlind) {
         this.currentStage = Stage.PREFLOP;
@@ -46,6 +93,31 @@ public class PokerGameState {
 
         for (Integer playerId : playerIds) {
             playerChips.put(playerId, startingChips);
+            playerBets.put(playerId, 0L);
+            playerFolded.put(playerId, false);
+            playerHoles.put(playerId, new ArrayList<>());
+        }
+    }
+
+    /**
+     * Constructor with individual credits per player (from database).
+     */
+    public PokerGameState(Map<Integer, Long> playerCredits, int smallBlind, int bigBlind) {
+        this.currentStage = Stage.PREFLOP;
+        this.communityCards = new ArrayList<>();
+        this.playerHoles = new HashMap<>();
+        this.playerChips = new HashMap<>();
+        this.playerBets = new HashMap<>();
+        this.playerFolded = new HashMap<>();
+        this.pot = 0;
+        this.currentBet = 0;
+        this.smallBlind = smallBlind;
+        this.bigBlind = bigBlind;
+        this.dealerPosition = 0;
+        this.lastRaiseAmount = bigBlind;
+
+        for (Integer playerId : playerCredits.keySet()) {
+            playerChips.put(playerId, playerCredits.get(playerId));
             playerBets.put(playerId, 0L);
             playerFolded.put(playerId, false);
             playerHoles.put(playerId, new ArrayList<>());
@@ -127,6 +199,10 @@ public class PokerGameState {
         playerBets.put(playerId, totalBet);
         pot += actualBet;
 
+        // Track total contributions for side pot calculation
+        long prevTotal = totalContributions.getOrDefault(playerId, 0L);
+        totalContributions.put(playerId, prevTotal + actualBet);
+
         if (totalBet > currentBet) {
             // Track raise amount for min-raise rule
             long raiseBy = totalBet - currentBet;
@@ -153,12 +229,86 @@ public class PokerGameState {
     }
 
     /**
-     * Award pot to winner.
+     * Award pot to winner (legacy single pot).
      */
     public void awardPot(int winnerId) {
         long currentChips = playerChips.getOrDefault(winnerId, 0L);
         playerChips.put(winnerId, currentChips + pot);
         pot = 0;
+    }
+
+    /**
+     * Award a specific amount to a player (used for side pots).
+     */
+    public void awardAmount(int winnerId, long amount) {
+        long currentChips = playerChips.getOrDefault(winnerId, 0L);
+        playerChips.put(winnerId, currentChips + amount);
+    }
+
+    /**
+     * Calculate side pots based on player contributions.
+     * Each pot contains an amount and eligible players who contributed at least
+     * that level.
+     * 
+     * @param activePlayers List of players still in the hand (not folded)
+     * @return List of pots from smallest contribution level to largest
+     */
+    public List<SidePot> calculateSidePots(List<Integer> activePlayers) {
+        sidePots.clear();
+
+        // Get contributions only for active (non-folded) players
+        List<Long> contributionLevels = new ArrayList<>();
+        for (int playerId : activePlayers) {
+            long contribution = totalContributions.getOrDefault(playerId, 0L);
+            if (contribution > 0 && !contributionLevels.contains(contribution)) {
+                contributionLevels.add(contribution);
+            }
+        }
+
+        // Sort contribution levels ascending
+        Collections.sort(contributionLevels);
+
+        long previousLevel = 0;
+        for (long level : contributionLevels) {
+            long potAmount = 0;
+            Set<Integer> eligible = new HashSet<>();
+
+            // For each contribution level, collect from all players (including folded)
+            for (Integer playerId : totalContributions.keySet()) {
+                long playerContribution = totalContributions.getOrDefault(playerId, 0L);
+                // How much this player contributes to this pot level
+                long contributionToThisPot = Math.min(playerContribution, level)
+                        - Math.min(playerContribution, previousLevel);
+                potAmount += contributionToThisPot;
+
+                // Only active players are eligible to win
+                if (activePlayers.contains(playerId) && playerContribution >= level) {
+                    eligible.add(playerId);
+                }
+            }
+
+            if (potAmount > 0 && !eligible.isEmpty()) {
+                sidePots.add(new SidePot(potAmount, eligible));
+            }
+
+            previousLevel = level;
+        }
+
+        return new ArrayList<>(sidePots);
+    }
+
+    /**
+     * Get total contribution for a player in this hand.
+     */
+    public long getTotalContribution(int playerId) {
+        return totalContributions.getOrDefault(playerId, 0L);
+    }
+
+    /**
+     * Get all side pots.
+     */
+    public List<SidePot> getSidePots() {
+        return new ArrayList<>(sidePots);
     }
 
     public void nextStage() {
