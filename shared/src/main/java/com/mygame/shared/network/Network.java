@@ -11,7 +11,7 @@ import com.mygame.shared.network.packets.*;
  * Network utility class for registering all packets with Kryo.
  */
 public class Network {
-    
+
     /**
      * Register all network packets and models with Kryo.
      * This must be called on both client and server before connecting.
@@ -26,13 +26,13 @@ public class Network {
         kryo.register(com.mygame.shared.model.Quest.class);
         kryo.register(java.time.LocalDateTime.class);
         kryo.register(java.util.ArrayList.class);
-        
+
         // Register authentication packets
         kryo.register(LoginRequest.class);
         kryo.register(LoginResponse.class);
         kryo.register(RegisterRequest.class);
         kryo.register(RegisterResponse.class);
-        
+
         // Register lobby packets
         kryo.register(LeaderboardRequest.class);
         kryo.register(LeaderboardResponse.class);
@@ -44,7 +44,7 @@ public class Network {
         kryo.register(GetQuestsResponse.class);
         kryo.register(ClaimQuestRequest.class);
         kryo.register(ClaimQuestResponse.class);
-        
+
         // Register room packets
         kryo.register(CreateRoomRequest.class);
         kryo.register(CreateRoomResponse.class);
@@ -54,9 +54,12 @@ public class Network {
         kryo.register(ListRoomsRequest.class);
         kryo.register(ListRoomsResponse.class);
         kryo.register(RoomUpdatePacket.class);
+        kryo.register(StartGameRequest.class);
+        kryo.register(StartGameResponse.class);
+        kryo.register(KickPacket.class);
         kryo.register(com.mygame.shared.model.RoomInfo.RoomPlayerInfo.class);
         kryo.register(com.mygame.shared.model.GameType.class);
-        
+
         // Register game packets
         kryo.register(com.mygame.shared.network.packets.game.PlayerActionPacket.class);
         kryo.register(com.mygame.shared.network.packets.game.GameStatePacket.class);

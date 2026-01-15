@@ -13,7 +13,8 @@ import org.slf4j.LoggerFactory;
  * Nhiệm vụ chính:
  * - Nắm giữ state game trong room.
  * - Nhận PlayerActionPacket từ ServerListener/RoomHandler và cập nhật state.
- * - Broadcast GameStatePacket / PlayerTurnPacket / GameEndPacket về cho toàn bộ room.
+ * - Broadcast GameStatePacket / PlayerTurnPacket / GameEndPacket về cho toàn bộ
+ * room.
  */
 public abstract class GameSession {
     protected final Logger logger = LoggerFactory.getLogger(getClass());

@@ -25,10 +25,13 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * Trách nhiệm:
  * - Tạo session phù hợp với loại game (Poker, Tiến Lên) khi ván bắt đầu.
- * - Nhận {@link PlayerActionPacket} từ ServerListener và forward vào session tương ứng.
- * - Broadcast {@link GameStartPacket}, {@link GameStatePacket}, {@link com.mygame.shared.network.packets.game.PlayerTurnPacket}
- *   và {@link GameEndPacket} tới toàn bộ room.
- * - Kết thúc ván: cập nhật credits, rank, thống kê win/loss và lưu match history.
+ * - Nhận {@link PlayerActionPacket} từ ServerListener và forward vào session
+ * tương ứng.
+ * - Broadcast {@link GameStartPacket}, {@link GameStatePacket},
+ * {@link com.mygame.shared.network.packets.game.PlayerTurnPacket}
+ * và {@link GameEndPacket} tới toàn bộ room.
+ * - Kết thúc ván: cập nhật credits, rank, thống kê win/loss và lưu match
+ * history.
  */
 public class GameSessionManager {
     private static final Logger logger = LoggerFactory.getLogger(GameSessionManager.class);
@@ -167,8 +170,7 @@ public class GameSessionManager {
                         result,
                         delta,
                         opponentCount,
-                        durationSeconds
-                );
+                        durationSeconds);
             } catch (SQLException e) {
                 logger.error("Lỗi khi cập nhật kết quả ván cho user {}: {}", playerId, e.getMessage(), e);
             }
@@ -198,4 +200,3 @@ public class GameSessionManager {
         return (int) Duration.between(start, Instant.now()).getSeconds();
     }
 }
-

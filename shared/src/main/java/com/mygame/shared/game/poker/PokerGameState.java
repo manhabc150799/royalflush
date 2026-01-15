@@ -15,7 +15,7 @@ public class PokerGameState {
         SHOWDOWN,
         FINISHED
     }
-    
+
     private Stage currentStage;
     private List<Card> communityCards;
     private Map<Integer, List<Card>> playerHoles; // userId -> hole cards
@@ -28,7 +28,8 @@ public class PokerGameState {
     private int dealerPosition;
     private int smallBlind;
     private int bigBlind;
-    
+    private long lastRaiseAmount; // For min-raise tracking
+
     public PokerGameState(List<Integer> playerIds, long startingChips, int smallBlind, int bigBlind) {
         this.currentStage = Stage.PREFLOP;
         this.communityCards = new ArrayList<>();
@@ -41,7 +42,8 @@ public class PokerGameState {
         this.smallBlind = smallBlind;
         this.bigBlind = bigBlind;
         this.dealerPosition = 0;
-        
+        this.lastRaiseAmount = bigBlind; // Initial min-raise is big blind
+
         for (Integer playerId : playerIds) {
             playerChips.put(playerId, startingChips);
             playerBets.put(playerId, 0L);
@@ -49,53 +51,116 @@ public class PokerGameState {
             playerHoles.put(playerId, new ArrayList<>());
         }
     }
-    
+
+    /**
+     * Copy constructor for deep copy.
+     */
+    public PokerGameState(PokerGameState other) {
+        this.currentStage = other.currentStage;
+        this.communityCards = new ArrayList<>(other.communityCards);
+        this.playerHoles = new HashMap<>();
+        for (Map.Entry<Integer, List<Card>> entry : other.playerHoles.entrySet()) {
+            this.playerHoles.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+        }
+        this.playerChips = new HashMap<>(other.playerChips);
+        this.playerBets = new HashMap<>(other.playerBets);
+        this.playerFolded = new HashMap<>(other.playerFolded);
+        this.pot = other.pot;
+        this.currentBet = other.currentBet;
+        this.currentPlayerTurn = other.currentPlayerTurn;
+        this.dealerPosition = other.dealerPosition;
+        this.smallBlind = other.smallBlind;
+        this.bigBlind = other.bigBlind;
+        this.lastRaiseAmount = other.lastRaiseAmount;
+    }
+
+    /**
+     * Create a sanitized copy for a specific player (hides opponent holes).
+     */
+    public PokerGameState sanitizeFor(int targetPlayerId) {
+        PokerGameState copy = new PokerGameState(this);
+        // Hide cards if not Showdown
+        if (copy.currentStage != Stage.SHOWDOWN) {
+            for (Integer playerId : copy.playerHoles.keySet()) {
+                if (playerId != targetPlayerId) {
+                    copy.playerHoles.put(playerId, new ArrayList<>()); // Hide
+                }
+            }
+        }
+        return copy;
+    }
+
     public void dealHoleCards(int playerId, List<Card> cards) {
         playerHoles.put(playerId, new ArrayList<>(cards));
     }
-    
+
     public void addCommunityCard(Card card) {
         communityCards.add(card);
     }
-    
+
     public void dealFlop(List<Card> cards) {
         communityCards.addAll(cards);
         currentStage = Stage.FLOP;
     }
-    
+
     public void dealTurn(Card card) {
         communityCards.add(card);
         currentStage = Stage.TURN;
     }
-    
+
     public void dealRiver(Card card) {
         communityCards.add(card);
         currentStage = Stage.RIVER;
     }
-    
+
     public void bet(int playerId, long amount) {
         long currentPlayerBet = playerBets.getOrDefault(playerId, 0L);
         long totalBet = currentPlayerBet + amount;
         long chips = playerChips.getOrDefault(playerId, 0L);
-        
+
         if (totalBet > chips) {
             totalBet = chips; // All-in
         }
-        
+
         long actualBet = totalBet - currentPlayerBet;
         playerChips.put(playerId, chips - actualBet);
         playerBets.put(playerId, totalBet);
         pot += actualBet;
-        
+
         if (totalBet > currentBet) {
+            // Track raise amount for min-raise rule
+            long raiseBy = totalBet - currentBet;
+            if (raiseBy > 0) {
+                lastRaiseAmount = raiseBy;
+            }
             currentBet = totalBet;
         }
     }
-    
+
     public void fold(int playerId) {
         playerFolded.put(playerId, true);
     }
-    
+
+    /**
+     * Reset bets for new betting round (called after FLOP/TURN/RIVER deal).
+     */
+    public void resetForNewRound() {
+        for (Integer playerId : playerBets.keySet()) {
+            playerBets.put(playerId, 0L);
+        }
+        currentBet = 0;
+        lastRaiseAmount = bigBlind; // Reset min-raise to big blind
+    }
+
+    /**
+     * Award pot to winner.
+     */
+    public void awardPot(int winnerId) {
+        long currentChips = playerChips.getOrDefault(winnerId, 0L);
+        playerChips.put(winnerId, currentChips + pot);
+        pot = 0;
+    }
+
     public void nextStage() {
         switch (currentStage) {
             case PREFLOP:
@@ -112,19 +177,61 @@ public class PokerGameState {
                 break;
         }
     }
-    
+
     // Getters
-    public Stage getCurrentStage() { return currentStage; }
-    public List<Card> getCommunityCards() { return new ArrayList<>(communityCards); }
-    public Map<Integer, List<Card>> getPlayerHoles() { return new HashMap<>(playerHoles); }
-    public List<Card> getPlayerHole(int playerId) { return new ArrayList<>(playerHoles.getOrDefault(playerId, new ArrayList<>())); }
-    public long getPot() { return pot; }
-    public long getCurrentBet() { return currentBet; }
-    public int getCurrentPlayerTurn() { return currentPlayerTurn; }
-    public void setCurrentPlayerTurn(int playerId) { this.currentPlayerTurn = playerId; }
-    public long getPlayerChips(int playerId) { return playerChips.getOrDefault(playerId, 0L); }
-    public long getPlayerBet(int playerId) { return playerBets.getOrDefault(playerId, 0L); }
-    public boolean isPlayerFolded(int playerId) { return playerFolded.getOrDefault(playerId, false); }
-    public int getSmallBlind() { return smallBlind; }
-    public int getBigBlind() { return bigBlind; }
+    public Stage getCurrentStage() {
+        return currentStage;
+    }
+
+    public List<Card> getCommunityCards() {
+        return new ArrayList<>(communityCards);
+    }
+
+    public Map<Integer, List<Card>> getPlayerHoles() {
+        return new HashMap<>(playerHoles);
+    }
+
+    public List<Card> getPlayerHole(int playerId) {
+        return new ArrayList<>(playerHoles.getOrDefault(playerId, new ArrayList<>()));
+    }
+
+    public long getPot() {
+        return pot;
+    }
+
+    public long getCurrentBet() {
+        return currentBet;
+    }
+
+    public int getCurrentPlayerTurn() {
+        return currentPlayerTurn;
+    }
+
+    public void setCurrentPlayerTurn(int playerId) {
+        this.currentPlayerTurn = playerId;
+    }
+
+    public long getPlayerChips(int playerId) {
+        return playerChips.getOrDefault(playerId, 0L);
+    }
+
+    public long getPlayerBet(int playerId) {
+        return playerBets.getOrDefault(playerId, 0L);
+    }
+
+    public boolean isPlayerFolded(int playerId) {
+        return playerFolded.getOrDefault(playerId, false);
+    }
+
+    public int getSmallBlind() {
+        return smallBlind;
+    }
+
+    public int getBigBlind() {
+        return bigBlind;
+    }
+
+    public long getLastRaiseAmount() {
+        return lastRaiseAmount;
+    }
 }

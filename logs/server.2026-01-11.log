@@ -1,0 +1,33 @@
+2026-01-11 19:06:55.734 [main] INFO  com.mygame.server.ServerLauncher - Step 1/4: Connecting to database...
+2026-01-11 19:06:55.977 [main] INFO  c.m.server.database.DatabaseManager - Database 'postgres' đã tồn tại
+2026-01-11 19:06:56.124 [main] INFO  c.m.server.database.DatabaseManager - Đã kết nối đến PostgreSQL database: postgres (catalog: postgres)
+2026-01-11 19:06:56.125 [main] INFO  com.mygame.server.ServerLauncher - ✓ Database connected
+2026-01-11 19:06:56.125 [main] INFO  com.mygame.server.ServerLauncher - Step 2/4: Initializing schema...
+2026-01-11 19:06:56.125 [main] INFO  c.m.server.database.DatabaseManager - Đang khởi tạo database schema...
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: CREATE INDEX IF NOT EXISTS idx_users_credits ON us
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: CREATE INDEX IF NOT EXISTS idx_user_quest_progress
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: CREATE INDEX IF NOT EXISTS idx_active_rooms_status
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: CREATE INDEX IF NOT EXISTS idx_active_rooms_game_t
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: CREATE INDEX IF NOT EXISTS idx_match_history_game_
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: CREATE INDEX IF NOT EXISTS idx_match_history_user_
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: CREATE INDEX IF NOT EXISTS idx_match_history_times
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: CREATE INDEX IF NOT EXISTS idx_room_players_room_i
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: CREATE INDEX IF NOT EXISTS idx_room_players_user_i
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: COMMENT ON TABLE daily_quest_config IS 'Static dai
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: COMMENT ON TABLE user_quest_progress IS 'User prog
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: COMMENT ON TABLE active_rooms IS 'Active game room
+2026-01-11 19:06:56.136 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: COMMENT ON TABLE match_history IS 'Completed match
+2026-01-11 19:06:56.144 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: COMMENT ON TABLE room_players IS 'Many-to-many rel
+2026-01-11 19:06:56.152 [main] DEBUG c.m.server.database.DatabaseManager - Đã thực thi: DELETE FROM daily_quest_config
+2026-01-11 19:06:56.156 [main] WARN  c.m.server.database.DatabaseManager - Lỗi khi thực thi SQL: ERROR: syntax error at or near "IF"
+  Position: 5
+2026-01-11 19:06:56.156 [main] WARN  c.m.server.database.DatabaseManager - Lỗi khi thực thi SQL: Unterminated dollar quote started at position 4 in SQL END $$. Expected terminating $$
+2026-01-11 19:06:56.156 [main] INFO  c.m.server.database.DatabaseManager - Đã khởi tạo database schema thành công
+2026-01-11 19:06:56.156 [main] INFO  com.mygame.server.ServerLauncher - ✓ Schema initialized
+2026-01-11 19:06:56.156 [main] INFO  com.mygame.server.ServerLauncher - Step 3/4: Starting network server...
+2026-01-11 19:06:56.230 [main] INFO  com.mygame.server.ServerLauncher - Step 4/4: Setting up listeners...
+2026-01-11 19:06:56.245 [main] INFO  com.mygame.server.ServerLauncher - 
+========================================
+2026-01-11 19:06:56.245 [main] INFO  com.mygame.server.ServerLauncher - ✅ SERVER STARTED SUCCESSFULLY ON PORT 54555
+2026-01-11 19:06:56.245 [main] INFO  com.mygame.server.ServerLauncher - ========================================
+

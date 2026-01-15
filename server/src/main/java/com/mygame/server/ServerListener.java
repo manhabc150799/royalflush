@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
  */
 public class ServerListener {
     private static final Logger logger = LoggerFactory.getLogger(ServerListener.class);
-    
+
     private final DatabaseManager dbManager;
     private final LoginHandler loginHandler;
     private final RegisterHandler registerHandler;
@@ -24,14 +24,13 @@ public class ServerListener {
     private final QuestHandler questHandler;
     private final com.mygame.server.handlers.RoomHandler roomHandler;
     private final GameSessionManager gameSessionManager;
-    
+
     // Map connection -> userId để track logged in users
-    private final java.util.Map<com.esotericsoftware.kryonet.Connection, Integer> connectionToUser = 
-        new java.util.concurrent.ConcurrentHashMap<>();
-    
+    private final java.util.Map<com.esotericsoftware.kryonet.Connection, Integer> connectionToUser = new java.util.concurrent.ConcurrentHashMap<>();
+
     public ServerListener(DatabaseManager dbManager) {
         this.dbManager = dbManager;
-        
+
         // Khởi tạo các handlers
         this.loginHandler = new LoginHandler(dbManager);
         this.registerHandler = new RegisterHandler(dbManager);
@@ -41,7 +40,7 @@ public class ServerListener {
         this.questHandler = new QuestHandler(dbManager, connectionToUser);
         this.roomHandler = new com.mygame.server.handlers.RoomHandler(dbManager);
         this.gameSessionManager = new GameSessionManager(dbManager, roomHandler.getRoomManager());
-        
+
         // Setup login callback để lưu userId
         loginHandler.setLoginCallback((connection, userId) -> {
             connectionToUser.put(connection, userId);
@@ -49,7 +48,7 @@ public class ServerListener {
             logger.info("Đã lưu userId {} cho connection {}", userId, connection.getID());
         });
     }
-    
+
     /**
      * Tạo và trả về Listener instance để add vào server
      */
@@ -59,7 +58,7 @@ public class ServerListener {
             public void connected(Connection connection) {
                 logger.info("Client kết nối: {} (ID: {})", connection.getRemoteAddressTCP(), connection.getID());
             }
-            
+
             @Override
             public void disconnected(Connection connection) {
                 logger.info("Client ngắt kết nối: {} (ID: {})", connection.getRemoteAddressTCP(), connection.getID());
@@ -67,12 +66,17 @@ public class ServerListener {
                 roomHandler.handleDisconnection(connection);
                 connectionToUser.remove(connection);
             }
-            
+
             @Override
             public void received(Connection connection, Object object) {
+                // Ignore internal KryoNet framework messages (KeepAlive, etc.)
+                if (object instanceof com.esotericsoftware.kryonet.FrameworkMessage) {
+                    return;
+                }
+
                 // Route packets đến các handlers tương ứng
                 logger.debug("Nhận packet từ client {}: {}", connection.getID(), object.getClass().getSimpleName());
-                
+
                 if (object instanceof LoginRequest) {
                     loginHandler.handle(connection, (LoginRequest) object);
                 } else if (object instanceof RegisterRequest) {
@@ -95,13 +99,16 @@ public class ServerListener {
                     roomHandler.handleLeaveRoom(connection, (LeaveRoomRequest) object);
                 } else if (object instanceof ListRoomsRequest) {
                     roomHandler.handleListRooms(connection, (ListRoomsRequest) object);
+                } else if (object instanceof StartGameRequest) {
+                    roomHandler.handleStartGame(connection, (StartGameRequest) object);
                 } else if (object instanceof com.mygame.shared.network.packets.game.PlayerActionPacket) {
-                    gameSessionManager.handlePlayerAction((com.mygame.shared.network.packets.game.PlayerActionPacket) object);
+                    gameSessionManager
+                            .handlePlayerAction((com.mygame.shared.network.packets.game.PlayerActionPacket) object);
                 } else {
                     logger.warn("Unknown packet type: {}", object.getClass().getName());
                 }
             }
-            
+
             @Override
             public void idle(Connection connection) {
                 // Có thể dùng để ping/pong nếu cần
@@ -109,4 +116,3 @@ public class ServerListener {
         };
     }
 }
-

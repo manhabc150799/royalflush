@@ -45,3 +45,4 @@ Sau khi setup, bạn có thể kiểm tra bằng cách:
 
 Sẽ thấy các bảng: users, match_history, game_rooms, room_players
 
+

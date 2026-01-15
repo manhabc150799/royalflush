@@ -42,9 +42,12 @@ import java.util.Locale;
 public class LobbyController implements ViewRenderer {
     private static final Logger logger = LoggerFactory.getLogger(LobbyController.class);
 
-    @Inject private NetworkService networkService;
-    @Inject private SessionManager sessionManager;
-    @Inject private InterfaceService interfaceService;
+    @Inject
+    private NetworkService networkService;
+    @Inject
+    private SessionManager sessionManager;
+    @Inject
+    private InterfaceService interfaceService;
 
     private static final String BACKGROUND_PATH = "ui/Background_lobby_mainscreen.png";
 
@@ -66,7 +69,7 @@ public class LobbyController implements ViewRenderer {
     private List<Quest> quests = new java.util.ArrayList<>();
     private List<com.mygame.shared.model.MatchHistoryEntry> matchHistoryEntries = new java.util.ArrayList<>();
     private boolean sfxEnabled = true;
-    
+
     // Auto-refresh timer for lobby list
     private float lobbyRefreshTimer = 0f;
     private static final float LOBBY_REFRESH_INTERVAL = 0.5f; // Refresh every 0.5 seconds
@@ -86,10 +89,10 @@ public class LobbyController implements ViewRenderer {
 
             // 1. Build UI first
             setupUI();
-            
+
             // 2. Setup network listener
             setupNetworkListener();
-            
+
             // 3. Request data from server
             requestServerData();
 
@@ -107,7 +110,7 @@ public class LobbyController implements ViewRenderer {
             lobbyRefreshTimer = 0f;
             requestRoomList();
         }
-        
+
         // Update and render stage
         stage.act(Math.min(delta, 1 / 30f));
         stage.draw();
@@ -163,21 +166,21 @@ public class LobbyController implements ViewRenderer {
 
         // Quest: STRICT WIDTH CONSTRAINT to prevent text from expanding indefinitely
         leftCol.add(createQuestTable()).width(300).expandY().fillY()
-               .padTop(200).padBottom(250).padLeft(0);
+                .padTop(200).padBottom(250).padLeft(0);
 
         mainTable.add(leftCol).width(420).expandY().fillY();
 
         // --- CENTER COLUMN (Lobby) ---
         // STRICT CONSTRAINT: width(800) keeps it inside the paper area
         mainTable.add(createLobbySection())
-                 .width(800).expandY().fillY()
-                 .padTop(330).padBottom(100).padLeft(120).padRight(50);
+                .width(800).expandY().fillY()
+                .padTop(330).padBottom(100).padLeft(120).padRight(50);
 
         // --- RIGHT COLUMN (Leaderboard) ---
         // STRICT CONSTRAINT: width(420) keeps it inside the grid area
         mainTable.add(createLeaderboardTable())
-                 .width(390).expandY().fillY()
-                 .padTop(300).padBottom(250).padRight(20).padLeft(80);
+                .width(390).expandY().fillY()
+                .padTop(300).padBottom(250).padRight(20).padLeft(80);
 
         stack.add(mainTable);
 
@@ -236,7 +239,7 @@ public class LobbyController implements ViewRenderer {
 
         questListContent = new Table();
         questListContent.top().left();
-        
+
         refreshQuestTable();
 
         ScrollPane scroll = new ScrollPane(questListContent, skin);
@@ -245,10 +248,11 @@ public class LobbyController implements ViewRenderer {
 
         return table;
     }
-    
+
     private void refreshQuestTable() {
-        if (questListContent == null) return;
-        
+        if (questListContent == null)
+            return;
+
         questListContent.clearChildren();
 
         // Display quests
@@ -260,14 +264,14 @@ public class LobbyController implements ViewRenderer {
         } else {
             for (final Quest q : quests) {
                 Table row = new Table();
-                
+
                 // Progress text: "description (progress/target)"
                 String progressText = q.description + " (" + q.currentProgress + "/" + q.targetCount + ")";
                 Label descLabel = new Label(progressText, transparentStyle);
                 descLabel.setWrap(true);
                 descLabel.setAlignment(Align.left);
                 descLabel.setFontScale(0.9f);
-                
+
                 // Color based on status
                 if (q.isClaimed) {
                     descLabel.setColor(Color.GRAY);
@@ -276,9 +280,9 @@ public class LobbyController implements ViewRenderer {
                 } else {
                     descLabel.setColor(Color.WHITE);
                 }
-                
+
                 Button checkBtn = new Button(skin, "Check_button");
-                
+
                 if (q.isClaimed || !q.isCompleted()) {
                     checkBtn.setColor(1, 1, 1, 0.5f);
                     checkBtn.setDisabled(true);
@@ -290,10 +294,10 @@ public class LobbyController implements ViewRenderer {
                         }
                     });
                 }
-                
+
                 row.add(descLabel).width(200).padRight(5).left();
                 row.add(checkBtn).size(30).right();
-                
+
                 questListContent.add(row).padBottom(8).row();
             }
         }
@@ -367,9 +371,9 @@ public class LobbyController implements ViewRenderer {
             }
         });
 
-        buttonTable.add(createBtn).width(180).height(65).pad(130,0,20,0);
-        buttonTable.add(historyBtn).width(180).height(65).pad(130,20,20,0);
-        buttonTable.add(botBtn).width(180).height(65).pad(130,20,20,0);
+        buttonTable.add(createBtn).width(180).height(65).pad(130, 0, 20, 0);
+        buttonTable.add(historyBtn).width(180).height(65).pad(130, 20, 20, 0);
+        buttonTable.add(botBtn).width(180).height(65).pad(130, 20, 20, 0);
 
         container.add(buttonTable).padTop(10);
 
@@ -401,10 +405,9 @@ public class LobbyController implements ViewRenderer {
     // =================================================================================
     private void showSettingsDialog() {
         Window.WindowStyle winStyle = new Window.WindowStyle(
-            skin.getFont("Blue_font"),
-            Color.WHITE,
-            skin.getDrawable("panel1")
-        );
+                skin.getFont("Blue_font"),
+                Color.WHITE,
+                skin.getDrawable("panel1"));
 
         final Dialog dialog = new Dialog("", winStyle);
         dialog.pad(40);
@@ -476,23 +479,23 @@ public class LobbyController implements ViewRenderer {
             logger.warn("Not connected to server, cannot request data");
             return;
         }
-        
+
         PlayerProfile profile = sessionManager.getPlayerProfile();
         int currentUserId = (profile != null) ? profile.id : -1;
-        
+
         // Request leaderboard (top 50)
         LeaderboardRequest leaderboardReq = new LeaderboardRequest();
         leaderboardReq.limit = 50;
         networkService.sendPacket(leaderboardReq);
-        
+
         // Request room list (all modes initially)
         requestRoomList();
-        
+
         // Request match history (limit 5 most recent)
         if (currentUserId > 0) {
             MatchHistoryRequest historyReq = new MatchHistoryRequest(currentUserId, 5);
             networkService.sendPacket(historyReq);
-            
+
             // Request daily quests
             if (networkService.isConnected()) {
                 GetQuestsRequest questsReq = new GetQuestsRequest();
@@ -504,10 +507,10 @@ public class LobbyController implements ViewRenderer {
         } else {
             logger.warn("Cannot request quests: invalid user ID");
         }
-        
+
         logger.info("Requested lobby data from server");
     }
-    
+
     /**
      * Request room list from server (used for auto-refresh)
      */
@@ -515,7 +518,7 @@ public class LobbyController implements ViewRenderer {
         if (!networkService.isConnected()) {
             return;
         }
-        
+
         // Get selected mode from filter
         String selectedMode = modeSelectBox != null ? modeSelectBox.getSelected() : "ALL";
         com.mygame.shared.model.GameType gameType = null;
@@ -526,33 +529,34 @@ public class LobbyController implements ViewRenderer {
                 logger.warn("Invalid game type: {}", selectedMode);
             }
         }
-        
+
         ListRoomsRequest roomsReq = new ListRoomsRequest(gameType);
         networkService.sendPacket(roomsReq);
     }
 
     private void refreshLobbyList() {
-        if (lobbyListContent == null) return;
+        if (lobbyListContent == null)
+            return;
 
         lobbyListContent.clearChildren();
-        
+
         String selectedMode = modeSelectBox != null ? modeSelectBox.getSelected() : "ALL";
-        
+
         // Filter rooms based on selected mode
         for (RoomInfo room : roomList) {
             // Filter by mode
             if (!selectedMode.equals("ALL")) {
-                if (room.getGameType() == null || 
-                    !room.getGameType().toString().equals(selectedMode)) {
+                if (room.getGameType() == null ||
+                        !room.getGameType().toString().equals(selectedMode)) {
                     continue;
                 }
             }
-            
+
             // Only show waiting rooms
             if (!"WAITING".equals(room.getStatus())) {
                 continue;
             }
-            
+
             // Skip full rooms
             if (room.getCurrentPlayers() >= room.getMaxPlayers()) {
                 continue;
@@ -560,22 +564,25 @@ public class LobbyController implements ViewRenderer {
 
             Table row = new Table();
 
-            Label roomLbl = new Label("R#" + room.getRoomId(), transparentStyle);
+            // Column 1: Room name
+            String roomNameStr = room.getRoomName() != null ? room.getRoomName() : "Room " + room.getRoomId();
+            Label roomLbl = new Label(roomNameStr, transparentStyle);
             roomLbl.setFontScale(1.1f);
-            roomLbl.setColor(Color.DARK_GRAY);
+            roomLbl.setColor(new Color(0, 0.55f, 0.55f, 1)); // Dark cyan
 
-            // Show bet amount (default to 0 if not available)
-            long betAmount = 0; // RoomInfo doesn't have betAmount field yet
-            Label stakeLbl = new Label("$" + formatNumber(betAmount), transparentStyle);
-            stakeLbl.setFontScale(1.1f);
-            stakeLbl.setColor(new Color(0.6f, 0, 0, 1));
+            // Column 2: Player count / Max
+            String playerCountStr = room.getCurrentPlayers() + "/" + room.getMaxPlayers();
+            Label playerCountLbl = new Label(playerCountStr, transparentStyle);
+            playerCountLbl.setFontScale(1.1f);
+            playerCountLbl.setColor(new Color(0, 0.55f, 0.55f, 1)); // Dark cyan
 
-            String modeNameStr = (room.getGameType() != null) ? 
-                room.getGameType().toString() : "UNKNOWN";
+            // Column 3: Game mode (POKER or TIENLEN)
+            String modeNameStr = (room.getGameType() != null) ? room.getGameType().toString() : "UNKNOWN";
             Label modeName = new Label(modeNameStr, transparentStyle);
             modeName.setFontScale(1.1f);
-            modeName.setColor(Color.NAVY);
+            modeName.setColor(new Color(0, 0.55f, 0.55f, 1)); // Dark cyan
 
+            // Column 4: Join button
             TextButton joinBtn = new TextButton("JOIN", skin, "blue_text_button");
 
             final int roomId = room.getRoomId();
@@ -586,14 +593,14 @@ public class LobbyController implements ViewRenderer {
                 }
             });
 
-            row.add(roomLbl).width(100).left();
-            row.add(stakeLbl).width(120).left();
-            row.add(modeName).width(250).center();
+            row.add(roomLbl).width(200).left();
+            row.add(playerCountLbl).width(80).center();
+            row.add(modeName).width(150).center();
             row.add(joinBtn).width(80).height(40).right();
 
             lobbyListContent.add(row).width(600).height(50).padBottom(5).row();
         }
-        
+
         // Show message if no rooms
         if (lobbyListContent.getChildren().size == 0) {
             Label emptyLabel = new Label("No rooms available", transparentStyle);
@@ -604,7 +611,8 @@ public class LobbyController implements ViewRenderer {
     }
 
     private void refreshLeaderboard() {
-        if (leaderboardContent == null) return;
+        if (leaderboardContent == null)
+            return;
 
         leaderboardContent.clearChildren();
 
@@ -630,7 +638,7 @@ public class LobbyController implements ViewRenderer {
             leaderboardContent.add(row).width(300).height(20).row();
             rank++;
         }
-        
+
         if (leaderboardEntries.isEmpty()) {
             Label emptyLabel = new Label("No data", transparentStyle);
             emptyLabel.setColor(Color.GRAY);
@@ -644,7 +652,7 @@ public class LobbyController implements ViewRenderer {
             Gdx.app.postRunnable(() -> {
                 // Log all received packets for debugging
                 Gdx.app.log("LobbyController", "Packet received: " + packet.getClass().getSimpleName());
-                
+
                 if (packet instanceof LeaderboardResponse) {
                     handleLeaderboardResponse((LeaderboardResponse) packet);
                 } else if (packet instanceof ListRoomsResponse) {
@@ -667,7 +675,7 @@ public class LobbyController implements ViewRenderer {
         });
         logger.info("Network listener setup complete");
     }
-    
+
     private void handleLeaderboardResponse(LeaderboardResponse response) {
         if (response.entries != null) {
             leaderboardEntries.clear();
@@ -676,7 +684,7 @@ public class LobbyController implements ViewRenderer {
             logger.info("Received {} leaderboard entries", leaderboardEntries.size());
         }
     }
-    
+
     private void handleRoomsResponse(ListRoomsResponse response) {
         if (response.getRooms() != null) {
             roomList.clear();
@@ -685,7 +693,7 @@ public class LobbyController implements ViewRenderer {
             logger.info("Received {} rooms", roomList.size());
         }
     }
-    
+
     private void handleMatchHistoryResponse(MatchHistoryResponse response) {
         if (response.entries != null) {
             matchHistoryEntries.clear();
@@ -693,12 +701,12 @@ public class LobbyController implements ViewRenderer {
             logger.info("Received {} match history entries", matchHistoryEntries.size());
         }
     }
-    
+
     private void handleDailyRewardResponse(DailyRewardResponse response) {
         // Daily reward is now handled by quest system
         logger.debug("Daily reward response received: {}", response.success);
     }
-    
+
     private void handleQuestsResponse(GetQuestsResponse response) {
         if (response.success && response.quests != null && !response.quests.isEmpty()) {
             quests.clear();
@@ -709,16 +717,16 @@ public class LobbyController implements ViewRenderer {
         } else {
             String errorMsg = response.errorMessage != null ? response.errorMessage : "Unknown error";
             logger.warn("Failed to get quests: {}", errorMsg);
-            
+
             // Show error message in quest table
             if (questListContent != null) {
                 questListContent.clearChildren();
-                
+
                 Label errorTitle = new Label("Failed to load quests", transparentStyle);
                 errorTitle.setColor(Color.RED);
                 errorTitle.setFontScale(1.0f);
                 questListContent.add(errorTitle).padBottom(10).row();
-                
+
                 Label errorDetail = new Label(errorMsg, transparentStyle);
                 errorDetail.setColor(Color.ORANGE);
                 errorDetail.setFontScale(0.8f);
@@ -727,7 +735,7 @@ public class LobbyController implements ViewRenderer {
             }
         }
     }
-    
+
     private void handleClaimQuestResponse(ClaimQuestResponse response) {
         if (response.success) {
             logger.info("Quest claimed! Awarded {} credits", response.creditsAwarded);
@@ -745,60 +753,43 @@ public class LobbyController implements ViewRenderer {
             logger.warn("Failed to claim quest: {}", response.errorMessage);
         }
     }
-    
+
     private void handleJoinRoomResponse(JoinRoomResponse response) {
         if (response.isSuccess() && response.getRoomInfo() != null) {
             logger.info("Joined room successfully: {}", response.getRoomInfo().getRoomId());
             sessionManager.setPendingRoomInfo(response.getRoomInfo());
-            // Navigate to room lobby (you'll need to implement RoomLobbyController)
-            // interfaceService.show(RoomLobbyController.class);
+            // Navigate to WaitingRoomScreen
+            interfaceService.show(com.mygame.client.screen.WaitingRoomScreen.class);
             logger.info("Room joined: {}", response.getRoomInfo().getRoomName());
         } else {
             logger.warn("Failed to join room: {}", response.getErrorMessage());
             // Could show error dialog here
         }
     }
-    
+
     private void handleCreateRoomResponse(CreateRoomResponse response) {
         Gdx.app.log("LobbyController", "Received CreateRoomResponse - success: " + response.isSuccess());
-        
+
         if (response.isSuccess() && response.getRoomInfo() != null) {
             logger.info("Room created successfully: {}", response.getRoomInfo().getRoomId());
-            Gdx.app.log("LobbyController", "Room created! ID: " + response.getRoomInfo().getRoomId() + ", Navigating to game...");
-            
+            Gdx.app.log("LobbyController", "Room created! ID: " + response.getRoomInfo().getRoomId());
+
             sessionManager.setPendingRoomInfo(response.getRoomInfo());
-            
-            // Navigate directly to game screen based on game type
-            com.mygame.shared.model.GameType gameType = response.getRoomInfo().getGameType();
-            logger.info("Game type: {}", gameType);
-            Gdx.app.log("LobbyController", "Game type: " + gameType);
-            
+
+            // Navigate to WaitingRoomScreen instead of directly to game
             try {
-                if (gameType == com.mygame.shared.model.GameType.POKER) {
-                    logger.info("Navigating to PokerGameControllerJava");
-                    Gdx.app.log("LobbyController", "Navigating to PokerGameControllerJava");
-                    interfaceService.show(PokerGameControllerJava.class);
-                } else if (gameType == com.mygame.shared.model.GameType.TIENLEN) {
-                    logger.info("Navigating to TienLenGameController");
-                    Gdx.app.log("LobbyController", "Navigating to TienLenGameController");
-                    interfaceService.show(TienLenGameController.class);
-                } else {
-                    logger.warn("Unknown game type: {}", gameType);
-                    Gdx.app.log("LobbyController", "ERROR: Unknown game type: " + gameType);
-                }
+                interfaceService.show(com.mygame.client.screen.WaitingRoomScreen.class);
+                logger.info("Navigating to WaitingRoomScreen");
             } catch (Exception e) {
-                logger.error("Error navigating to game screen: {}", e.getMessage(), e);
-                Gdx.app.log("LobbyController", "ERROR navigating: " + e.getMessage());
-                e.printStackTrace();
+                logger.error("Error navigating to WaitingRoomScreen: {}", e.getMessage(), e);
             }
         } else {
             String errorMsg = response.getErrorMessage() != null ? response.getErrorMessage() : "Unknown error";
             logger.error("Failed to create room: {}", errorMsg);
             Gdx.app.log("LobbyController", "Create room failed: " + errorMsg);
-            // Could show error dialog here
         }
     }
-    
+
     // =================================================================================
     // ACTION METHODS
     // =================================================================================
@@ -807,76 +798,75 @@ public class LobbyController implements ViewRenderer {
         networkService.sendPacket(request);
         logger.info("Joining room: {}", roomId);
     }
-    
+
     private void claimQuest(int questId) {
         ClaimQuestRequest request = new ClaimQuestRequest(questId);
         networkService.sendPacket(request);
         logger.info("Claiming quest: {}", questId);
     }
-    
+
     private void showCreateRoomDialog() {
         // Simple dialog to create room
         Window.WindowStyle winStyle = new Window.WindowStyle(
-            skin.getFont("Blue_font"),
-            Color.WHITE,
-            skin.getDrawable("panel1")
-        );
-        
+                skin.getFont("Blue_font"),
+                Color.WHITE,
+                skin.getDrawable("panel1"));
+
         final Dialog dialog = new Dialog("Create Room", winStyle);
         dialog.pad(40);
-        
+
         Table content = dialog.getContentTable();
-        
+
         // Room Name
         Label nameLabel = new Label("Room Name:", transparentStyle);
         nameLabel.setFontScale(1.0f);
         content.add(nameLabel).left().padBottom(10).row();
-        
+
         final TextField nameField = new TextField("", skin, "text_field_login");
         nameField.setMessageText("Enter room name");
         content.add(nameField).width(300).height(40).padBottom(15).row();
-        
+
         // Game Mode
         Label modeLabel = new Label("Mode:", transparentStyle);
         modeLabel.setFontScale(1.0f);
         content.add(modeLabel).left().padBottom(10).row();
-        
+
         final SelectBox<String> modeBox = new SelectBox<>(skin, "default");
         modeBox.setItems("POKER", "TIENLEN");
         content.add(modeBox).width(300).height(40).padBottom(20).row();
-        
+
         // Buttons
         Table buttonTable = new Table();
-        
+
         TextButton createBtn = new TextButton("CREATE", skin, "blue_text_button");
         createBtn.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 Gdx.app.log("LobbyController", "Create button clicked!");
                 logger.info("Create button clicked in showCreateRoomDialog");
-                
+
                 String roomName = nameField.getText().trim();
                 if (roomName.isEmpty()) {
                     roomName = "Room " + System.currentTimeMillis() % 10000;
                 }
-                
+
                 String modeStr = modeBox.getSelected();
                 GameType gameType = GameType.valueOf(modeStr);
-                
+
                 CreateRoomRequest request = new CreateRoomRequest();
                 request.setRoomName(roomName);
                 request.setGameType(gameType);
                 request.setMaxPlayers(gameType == GameType.POKER ? 5 : 4);
-                
-                logger.info("Sending CreateRoomRequest: name={}, type={}, maxPlayers={}", 
-                           roomName, gameType, request.getMaxPlayers());
-                
+
+                logger.info("Sending CreateRoomRequest: name={}, type={}, maxPlayers={}",
+                        roomName, gameType, request.getMaxPlayers());
+
                 networkService.sendPacket(request);
                 dialog.hide();
                 logger.info("CreateRoomRequest sent successfully");
             }
         });
-        
+
         TextButton cancelBtn = new TextButton("CANCEL", skin, "blue_text_button");
         cancelBtn.addListener(new ChangeListener() {
             @Override
@@ -884,15 +874,15 @@ public class LobbyController implements ViewRenderer {
                 dialog.hide();
             }
         });
-        
+
         buttonTable.add(createBtn).width(120).height(50).padRight(10);
         buttonTable.add(cancelBtn).width(120).height(50);
-        
+
         content.add(buttonTable);
-        
+
         dialog.show(stage);
     }
-    
+
     private void showMatchHistoryDialog() {
         // Request fresh data
         PlayerProfile profile = sessionManager.getPlayerProfile();
@@ -901,28 +891,27 @@ public class LobbyController implements ViewRenderer {
             MatchHistoryRequest historyReq = new MatchHistoryRequest(currentUserId, 5);
             networkService.sendPacket(historyReq);
         }
-        
+
         // Create dialog
         Window.WindowStyle winStyle = new Window.WindowStyle(
-            skin.getFont("Blue_font"),
-            Color.WHITE,
-            skin.getDrawable("panel1")
-        );
-        
+                skin.getFont("Blue_font"),
+                Color.WHITE,
+                skin.getDrawable("panel1"));
+
         final Dialog dialog = new Dialog("Match History", winStyle);
         dialog.pad(40);
-        
+
         Table content = dialog.getContentTable();
-        
+
         // Title
         Label title = new Label("RECENT MATCHES", transparentStyle);
         title.setFontScale(1.5f);
         content.add(title).padBottom(20).row();
-        
+
         // History table
         Table historyTable = new Table();
         historyTable.top().left();
-        
+
         if (matchHistoryEntries.isEmpty()) {
             Label emptyLabel = new Label("No match history", transparentStyle);
             emptyLabel.setColor(Color.GRAY);
@@ -943,17 +932,17 @@ public class LobbyController implements ViewRenderer {
             Label timeHeader = new Label("Time", transparentStyle);
             timeHeader.setFontScale(1.0f);
             timeHeader.setColor(Color.BLACK);
-            
+
             headerRow.add(resultHeader).width(100).padRight(10);
             headerRow.add(modeHeader).width(120).padRight(10);
             headerRow.add(creditsHeader).width(100).padRight(10);
             headerRow.add(timeHeader).width(150);
             historyTable.add(headerRow).padBottom(10).row();
-            
+
             // Data rows
             for (com.mygame.shared.model.MatchHistoryEntry entry : matchHistoryEntries) {
                 Table row = new Table();
-                
+
                 // Result (Win/Lose) - Green for Win, Red for Lose
                 String resultText = entry.result != null ? entry.result.toUpperCase() : "UNKNOWN";
                 Label resultLabel = new Label(resultText, transparentStyle);
@@ -965,20 +954,20 @@ public class LobbyController implements ViewRenderer {
                 } else {
                     resultLabel.setColor(Color.WHITE);
                 }
-                
+
                 // Mode
-                String modeText = (entry.gameType != null ? entry.gameType : "UNKNOWN") + 
-                                 (entry.matchMode != null ? " - " + entry.matchMode : "");
+                String modeText = (entry.gameType != null ? entry.gameType : "UNKNOWN") +
+                        (entry.matchMode != null ? " - " + entry.matchMode : "");
                 Label modeLabel = new Label(modeText, transparentStyle);
                 modeLabel.setFontScale(0.9f);
                 modeLabel.setColor(Color.WHITE);
-                
+
                 // Credits change - Green for positive, Red for negative
                 String creditsText = (entry.creditsChange >= 0 ? "+" : "") + formatNumber(entry.creditsChange);
                 Label creditsLabel = new Label(creditsText, transparentStyle);
                 creditsLabel.setFontScale(0.9f);
                 creditsLabel.setColor(entry.creditsChange >= 0 ? Color.GREEN : Color.RED);
-                
+
                 // Time
                 String timeText = "N/A";
                 if (entry.timestamp != null) {
@@ -988,20 +977,20 @@ public class LobbyController implements ViewRenderer {
                 Label timeLabel = new Label(timeText, transparentStyle);
                 timeLabel.setFontScale(0.9f);
                 timeLabel.setColor(Color.GRAY);
-                
+
                 row.add(resultLabel).width(100).padRight(10).left();
                 row.add(modeLabel).width(120).padRight(10).left();
                 row.add(creditsLabel).width(100).padRight(10).right();
                 row.add(timeLabel).width(150).left();
-                
+
                 historyTable.add(row).padBottom(5).row();
             }
         }
-        
+
         ScrollPane scroll = new ScrollPane(historyTable, skin);
         scroll.setScrollingDisabled(true, false);
         content.add(scroll).width(500).height(300).padBottom(20).row();
-        
+
         // Close button
         TextButton closeBtn = new TextButton("CLOSE", skin, "blue_text_button");
         closeBtn.addListener(new ChangeListener() {
@@ -1011,7 +1000,7 @@ public class LobbyController implements ViewRenderer {
             }
         });
         content.add(closeBtn).width(150).height(40);
-        
+
         dialog.show(stage);
     }
 
@@ -1022,10 +1011,8 @@ public class LobbyController implements ViewRenderer {
         if (number < 100000) {
             return String.valueOf(number);
         }
-        return String.format(Locale.US, "%.2e", (double)number);
+        return String.format(Locale.US, "%.2e", (double) number);
     }
-
-
 
     public void resize(int width, int height) {
         if (stage != null) {
