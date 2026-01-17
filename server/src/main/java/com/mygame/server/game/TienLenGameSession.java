@@ -12,6 +12,9 @@ import com.mygame.shared.model.GameType;
 import com.mygame.shared.network.packets.game.GameStartPacket;
 import com.mygame.shared.network.packets.game.GameStatePacket;
 import com.mygame.shared.network.packets.game.PlayerActionPacket;
+import com.mygame.shared.network.packets.game.PlayAgainVotePacket;
+import com.mygame.shared.network.packets.game.PlayAgainStatusPacket;
+import com.mygame.shared.network.packets.game.GameEndPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +34,10 @@ public class TienLenGameSession extends GameSession {
 
     private boolean finished = false;
     private int winnerId = -1;
+
+    // Voting state for play again system
+    private boolean inVotingPhase = false;
+    private Set<Integer> playAgainVotes = new HashSet<>();
 
     // Scoring
     private static final long BUY_IN_AMOUNT = 10_000L;
@@ -390,7 +397,138 @@ public class TienLenGameSession extends GameSession {
     private void endGame(int winner) {
         finished = true;
         winnerId = winner;
+        inVotingPhase = true;
+        playAgainVotes.clear();
+
         broadcastState();
+        broadcastGameEndPacket();
+    }
+
+    /**
+     * Broadcast GameEndPacket to all clients when game finishes.
+     */
+    private void broadcastGameEndPacket() {
+        if (room == null)
+            return;
+
+        GameEndPacket packet = new GameEndPacket();
+        packet.setRoomId(roomId);
+        packet.setGameType(gameType);
+        packet.setWinnerId(winnerId);
+        packet.setPlayerIds(new ArrayList<>(playerOrder));
+
+        // Build credit changes list
+        Map<Integer, Long> changes = getCreditChanges();
+        List<Long> creditChangesList = new ArrayList<>();
+        for (Integer pid : playerOrder) {
+            creditChangesList.add(changes.getOrDefault(pid, 0L));
+        }
+        packet.setCreditChanges(creditChangesList);
+
+        room.broadcast(packet);
+        logger.info("Broadcast GameEndPacket. Winner: {}", winnerId);
+    }
+
+    /**
+     * Handle play again vote from a player.
+     * 
+     * @param packet The vote packet from client
+     */
+    public void handlePlayAgainVote(PlayAgainVotePacket packet) {
+        if (!inVotingPhase) {
+            logger.warn("Received vote but not in voting phase");
+            return;
+        }
+
+        int playerId = packet.getPlayerId();
+        String voteType = packet.getVoteType();
+
+        logger.info("Player {} voted: {}", playerId, voteType);
+
+        if ("RETURN_TO_LOBBY".equals(voteType)) {
+            // One player wants to return - all return to lobby
+            logger.info("Player {} triggered return to lobby for all players", playerId);
+            inVotingPhase = false;
+            broadcastVotingStatus("RETURNING_TO_LOBBY");
+            return;
+        }
+
+        if ("PLAY_AGAIN".equals(voteType)) {
+            playAgainVotes.add(playerId);
+
+            // Check if all players voted
+            int totalPlayers = playerOrder.size();
+            if (playAgainVotes.size() >= totalPlayers) {
+                // All voted to play again - start new game
+                logger.info("All {} players voted to play again. Starting new game.", totalPlayers);
+                inVotingPhase = false;
+                broadcastVotingStatus("STARTING_NEW_GAME");
+                restartGame();
+            } else {
+                // Still waiting for more votes
+                broadcastVotingStatus("VOTING");
+            }
+        }
+    }
+
+    /**
+     * Broadcast voting status to all clients.
+     */
+    private void broadcastVotingStatus(String status) {
+        if (room == null)
+            return;
+
+        PlayAgainStatusPacket packet = new PlayAgainStatusPacket();
+        packet.setRoomId(roomId);
+        packet.setCurrentVotes(playAgainVotes.size());
+        packet.setTotalRequired(playerOrder.size());
+        packet.setStatus(status);
+        packet.setVoterIds(new ArrayList<>(playAgainVotes));
+
+        room.broadcast(packet);
+        logger.info("Broadcast voting status: {} ({}/{})", status, playAgainVotes.size(), playerOrder.size());
+    }
+
+    /**
+     * Restart the game with the same players.
+     */
+    private void restartGame() {
+        // Reset game state
+        finished = false;
+        winnerId = -1;
+        pot = 0;
+        playAgainVotes.clear();
+
+        // Collect buy-ins again
+        for (Integer userId : playerOrder) {
+            pot += BUY_IN_AMOUNT;
+        }
+
+        // Create new game state
+        gameState.reset(playerOrder);
+
+        // Deal new hands
+        dealHands();
+
+        // Broadcast game start
+        broadcastGameStart();
+        broadcastState();
+
+        // Check instant win
+        int instantWinner = checkInstantWin();
+        if (instantWinner != -1) {
+            logger.info("Instant Winner (Toi Trang) detected: {}", instantWinner);
+            endGame(instantWinner);
+        } else {
+            determineFirstPlayer();
+        }
+    }
+
+    /**
+     * Check if in voting phase.
+     */
+    public boolean isInVotingPhase() {
+        return inVotingPhase;
     }
 
     private void broadcastState() {

@@ -106,6 +106,9 @@ public class ServerListener {
                 } else if (object instanceof com.mygame.shared.network.packets.game.PlayerActionPacket) {
                     gameSessionManager
                             .handlePlayerAction((com.mygame.shared.network.packets.game.PlayerActionPacket) object);
+                } else if (object instanceof com.mygame.shared.network.packets.game.PlayAgainVotePacket) {
+                    gameSessionManager
+                            .handlePlayAgainVote((com.mygame.shared.network.packets.game.PlayAgainVotePacket) object);
                 } else {
                     logger.warn("Unknown packet type: {}", object.getClass().getName());
                 }

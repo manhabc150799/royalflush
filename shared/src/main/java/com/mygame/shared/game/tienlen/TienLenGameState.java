@@ -31,6 +31,27 @@ public class TienLenGameState {
         this.playerCredits = new HashMap<>();
     }
 
+    /**
+     * Reset the game state for a new game with the same players.
+     */
+    public void reset(List<Integer> playerIds) {
+        this.playerHands.clear();
+        this.currentTrick.clear();
+        this.currentTrickType = null;
+        this.currentPlayerTurn = 0;
+        this.lastPlayedPlayer = -1;
+        this.playerOrder = new ArrayList<>(playerIds);
+        this.playerFinished.clear();
+        this.skippedPlayers.clear();
+        this.winners.clear();
+        // Keep playerCredits as they are (persist across games)
+
+        for (Integer playerId : playerIds) {
+            playerHands.put(playerId, new ArrayList<>());
+            playerFinished.put(playerId, false);
+        }
+    }
+
     public TienLenGameState(List<Integer> playerIds) {
         this.playerHands = new HashMap<>();
         this.currentTrick = new ArrayList<>();

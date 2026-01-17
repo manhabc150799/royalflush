@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
@@ -117,6 +118,9 @@ public class LobbyController implements ViewRenderer {
     }
 
     private void setupUI() {
+        // Set FitViewport for responsive UI scaling
+        stage.setViewport(new FitViewport(1920, 1080));
+        stage.getViewport().update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
         stage.clear();
 
         // Load assets
@@ -367,7 +371,7 @@ public class LobbyController implements ViewRenderer {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 logger.info("Play with Bot clicked");
-                interfaceService.show(PokerGameControllerJava.class);
+                showVsBotDialog();
             }
         });
 
@@ -1000,6 +1004,76 @@ public class LobbyController implements ViewRenderer {
             }
         });
         content.add(closeBtn).width(150).height(40);
+
+        dialog.show(stage);
+    }
+
+    // =================================================================================
+    // VS BOT DIALOG
+    // =================================================================================
+    private void showVsBotDialog() {
+        Window.WindowStyle winStyle = new Window.WindowStyle(
+                skin.getFont("Blue_font"),
+                Color.WHITE,
+                skin.getDrawable("panel1"));
+
+        final Dialog dialog = new Dialog("", winStyle);
+        dialog.pad(40);
+
+        Table content = dialog.getContentTable();
+
+        // Title
+        Label title = new Label("SELECT GAME MODE", transparentStyle);
+        title.setFontScale(1.5f);
+        content.add(title).padBottom(30).row();
+
+        // Subtitle
+        Label subtitle = new Label("Play against AI bots", transparentStyle);
+        subtitle.setFontScale(1.0f);
+        subtitle.setColor(Color.GRAY);
+        content.add(subtitle).padBottom(30).row();
+
+        // Buttons container
+        Table buttonTable = new Table();
+
+        // Poker button (1 vs 4 bots)
+        TextButton pokerBtn = new TextButton("POKER\n(vs 4 Bots)", skin, "blue_text_button");
+        pokerBtn.getLabel().setFontScale(1.2f);
+        pokerBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                logger.info("Starting Poker vs Bot game");
+                dialog.hide();
+                interfaceService.show(com.mygame.client.ui.game.PokerBotGameScreen.class);
+            }
+        });
+
+        // Tien Len button (1 vs 3 bots)
+        TextButton tienlenBtn = new TextButton("TIEN LEN\n(vs 3 Bots)", skin, "blue_text_button");
+        tienlenBtn.getLabel().setFontScale(1.2f);
+        tienlenBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                logger.info("Starting Tien Len vs Bot game");
+                dialog.hide();
+                interfaceService.show(com.mygame.client.ui.game.TienLenBotGameScreen.class);
+            }
+        });
+
+        buttonTable.add(pokerBtn).width(200).height(80).padRight(20);
+        buttonTable.add(tienlenBtn).width(200).height(80);
+
+        content.add(buttonTable).padBottom(20).row();
+
+        // Cancel button
+        TextButton cancelBtn = new TextButton("CANCEL", skin, "blue_text_button");
+        cancelBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                dialog.hide();
+            }
+        });
+        content.add(cancelBtn).width(150).height(50);
 
         dialog.show(stage);
     }

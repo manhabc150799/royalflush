@@ -512,17 +512,12 @@ public class PokerTableLayout extends Table {
     }
 
     /**
-     * Set Call button visibility and text.
+     * Set Call button visibility.
      */
     public void setCallButtonVisible(boolean visible, long amount) {
         if (callButton != null) {
             callButton.setVisible(visible);
-            if (visible && amount >= 0) {
-                // Use legacy setText if available or recreate logic? TextButton has setText.
-                callButton.setText("CALL $" + NUMBER_FORMAT.format(amount));
-            } else {
-                callButton.setText("CALL");
-            }
+            callButton.setText("CALL"); // Just "CALL" without amount
         }
     }
 

@@ -9,7 +9,8 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.utils.Align;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.mygame.client.RoyalFlushG;
 import com.mygame.client.service.NetworkService;
 import com.mygame.client.ui.UISkinManager;
 import com.mygame.shared.game.card.Card;
@@ -136,7 +137,7 @@ public class PokerGameScreen implements Screen {
 
     @Override
     public void show() {
-        stage = new Stage(new ScreenViewport());
+        stage = new Stage(new FitViewport(RoyalFlushG.VIRTUAL_WIDTH, RoyalFlushG.VIRTUAL_HEIGHT));
         Gdx.input.setInputProcessor(stage); // CRITICAL: Enable input handling
 
         skin = UISkinManager.getInstance().getSkin();

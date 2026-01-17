@@ -79,5 +79,9 @@ public class Network {
         // Register game state classes for Tien Len
         kryo.register(com.mygame.shared.game.tienlen.TienLenGameState.class);
         kryo.register(com.mygame.shared.game.tienlen.TienLenCombinationType.class);
+
+        // Register voting packets for play again system
+        kryo.register(com.mygame.shared.network.packets.game.PlayAgainVotePacket.class);
+        kryo.register(com.mygame.shared.network.packets.game.PlayAgainStatusPacket.class);
     }
 }

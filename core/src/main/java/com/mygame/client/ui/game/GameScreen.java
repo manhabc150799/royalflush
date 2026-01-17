@@ -15,7 +15,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.mygame.client.RoyalFlushG;
 import com.mygame.client.service.NetworkService;
 import com.mygame.client.ui.UISkinManager;
 import com.mygame.shared.game.card.Card;
@@ -134,7 +135,7 @@ public class GameScreen implements Screen {
 
     @Override
     public void show() {
-        stage = new Stage(new ScreenViewport());
+        stage = new Stage(new FitViewport(RoyalFlushG.VIRTUAL_WIDTH, RoyalFlushG.VIRTUAL_HEIGHT));
         Gdx.input.setInputProcessor(stage);
 
         skin = UISkinManager.getInstance().getSkin();

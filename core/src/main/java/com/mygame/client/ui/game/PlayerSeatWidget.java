@@ -254,6 +254,12 @@ public class PlayerSeatWidget extends Table {
             hideCards();
         } else {
             setColor(Color.WHITE);
+            // Restore card visibility when unfolding (show backs for now, actual cards set
+            // by updateCards/showBackCards)
+            if (card1 != null)
+                card1.setVisible(true);
+            if (card2 != null)
+                card2.setVisible(true);
         }
     }
 

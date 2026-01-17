@@ -11,6 +11,7 @@ import com.mygame.shared.network.packets.game.GameEndPacket;
 import com.mygame.shared.network.packets.game.GameStartPacket;
 import com.mygame.shared.network.packets.game.GameStatePacket;
 import com.mygame.shared.network.packets.game.PlayerActionPacket;
+import com.mygame.shared.network.packets.game.PlayAgainVotePacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -128,9 +129,55 @@ public class GameSessionManager {
         GameStatePacket statePacket = session.buildGameStatePacket();
         room.broadcast(statePacket);
 
-        // Nếu ván đã kết thúc, finalize
+        // Nếu ván đã kết thúc, finalize (but don't remove session if in voting phase)
         if (session.isFinished()) {
+            // For TienLen, check if in voting phase - don't finalize yet
+            if (session instanceof TienLenGameSession) {
+                TienLenGameSession tienLenSession = (TienLenGameSession) session;
+                if (tienLenSession.isInVotingPhase()) {
+                    // Don't finalize yet, wait for votes
+                    logger.info("Tien Len game {} finished, entering voting phase", roomId);
+                    return;
+                }
+            }
             finalizeSession(room, session);
+        }
+    }
+
+    /**
+     * Handle PlayAgainVotePacket for voting after game ends.
+     */
+    public void handlePlayAgainVote(PlayAgainVotePacket packet) {
+        int roomId = packet.getRoomId();
+        GameSession session = sessions.get(roomId);
+
+        if (session == null) {
+            logger.warn("No session found for room {} when handling vote", roomId);
+            return;
+        }
+
+        if (!(session instanceof TienLenGameSession)) {
+            logger.warn("PlayAgainVote only supported for TienLen, room {} has {}",
+                    roomId, session.getClass().getSimpleName());
+            return;
+        }
+
+        TienLenGameSession tienLenSession = (TienLenGameSession) session;
+        tienLenSession.handlePlayAgainVote(packet);
+
+        // Check if voting is complete and should remove session
+        if (!tienLenSession.isInVotingPhase()) {
+            // Voting complete
+            if (!tienLenSession.isFinished()) {
+                // Game restarted, keep session
+                logger.info("Tien Len game {} restarted after voting", roomId);
+            } else {
+                // Return to lobby - finalize and remove session
+                GameRoom room = roomManager.getRoom(roomId);
+                if (room != null) {
+                    finalizeSession(room, session);
+                }
+            }
         }
     }
 

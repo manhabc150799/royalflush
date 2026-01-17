@@ -8,7 +8,8 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.utils.Align;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.mygame.client.RoyalFlushG;
 import com.mygame.client.service.NetworkService;
 import com.mygame.client.ui.UISkinManager;
 import com.mygame.shared.game.card.Card;
@@ -19,6 +20,12 @@ import com.mygame.shared.network.packets.game.GameStartPacket;
 import com.mygame.shared.network.packets.game.PlayerActionPacket;
 import com.mygame.shared.network.packets.game.PlayerTurnPacket;
 import com.mygame.shared.network.packets.game.GameEndPacket;
+import com.mygame.shared.network.packets.game.PlayAgainVotePacket;
+import com.mygame.shared.network.packets.game.PlayAgainStatusPacket;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.graphics.Pixmap;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -67,6 +74,12 @@ public class TienLenGameScreen implements Screen {
     // Warning toast
     private Label warningToast;
 
+    // End game dialog UI
+    private Table endGameOverlay;
+    private Label votingStatusLabel;
+    private boolean hasVoted = false;
+    private Runnable onReturnToLobby;
+
     /**
      * Create TienLenGameScreen.
      *
@@ -107,7 +120,7 @@ public class TienLenGameScreen implements Screen {
 
     @Override
     public void show() {
-        stage = new Stage(new ScreenViewport());
+        stage = new Stage(new FitViewport(RoyalFlushG.VIRTUAL_WIDTH, RoyalFlushG.VIRTUAL_HEIGHT));
         Gdx.input.setInputProcessor(stage); // CRITICAL: Enable input handling
 
         skin = UISkinManager.getInstance().getSkin();
@@ -379,6 +392,8 @@ public class TienLenGameScreen implements Screen {
                 handlePlayerTurnPacket((PlayerTurnPacket) packet);
             } else if (packet instanceof GameEndPacket) {
                 handleGameEndPacket((GameEndPacket) packet);
+            } else if (packet instanceof PlayAgainStatusPacket) {
+                handlePlayAgainStatusPacket((PlayAgainStatusPacket) packet);
             }
         });
     }
@@ -509,10 +524,180 @@ public class TienLenGameScreen implements Screen {
             return;
 
         int winnerId = packet.getWinnerId();
-        Gdx.app.log(TAG, "Game ended! Winner: " + winnerId);
+        boolean isWinner = (winnerId == localPlayerId);
+        String winnerName = getUsernameForPlayer(winnerId);
 
-        String winMsg = (winnerId == localPlayerId) ? "YOU WIN!" : "Player " + winnerId + " wins!";
-        showWarningToast(winMsg);
+        Gdx.app.log(TAG, "Game ended! Winner: " + winnerName + " (ID: " + winnerId + ")");
+
+        // Disable game controls
+        gameLayout.setButtonsEnabled(false);
+
+        // Show end game dialog with voting
+        showEndGameDialog(isWinner, winnerName, packet.getCreditChanges());
+    }
+
+    /**
+     * Handle PlayAgainStatusPacket - update voting UI.
+     */
+    private void handlePlayAgainStatusPacket(PlayAgainStatusPacket packet) {
+        if (packet.getRoomId() != roomId)
+            return;
+
+        String status = packet.getStatus();
+        int currentVotes = packet.getCurrentVotes();
+        int totalRequired = packet.getTotalRequired();
+
+        Gdx.app.log(TAG, "Voting status: " + status + " (" + currentVotes + "/" + totalRequired + ")");
+
+        if ("VOTING".equals(status)) {
+            // Update voting label
+            if (votingStatusLabel != null) {
+                votingStatusLabel.setText("Waiting for votes: " + currentVotes + "/" + totalRequired);
+            }
+        } else if ("STARTING_NEW_GAME".equals(status)) {
+            // All voted to play again - hide dialog and wait for new game start
+            if (endGameOverlay != null) {
+                endGameOverlay.remove();
+                endGameOverlay = null;
+            }
+            hasVoted = false;
+            showWarningToast("Starting new game...");
+        } else if ("RETURNING_TO_LOBBY".equals(status)) {
+            // Someone triggered return to lobby
+            if (endGameOverlay != null) {
+                endGameOverlay.remove();
+                endGameOverlay = null;
+            }
+            hasVoted = false;
+            returnToLobby();
+        }
+    }
+
+    /**
+     * Show end game dialog with PLAY AGAIN and RETURN TO LOBBY buttons.
+     */
+    private void showEndGameDialog(boolean isWinner, String winnerName, java.util.List<Long> creditChanges) {
+        // Create dark overlay
+        Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        pixmap.setColor(0, 0, 0, 0.7f);
+        pixmap.fill();
+        Texture overlayTex = new Texture(pixmap);
+        pixmap.dispose();
+
+        endGameOverlay = new Table();
+        endGameOverlay.setFillParent(true);
+        endGameOverlay.setBackground(new TextureRegionDrawable(overlayTex));
+
+        // Create popup panel
+        Table popup = new Table();
+        popup.setBackground(skin.getDrawable("panel1"));
+        popup.pad(40);
+
+        // Title
+        String title = isWinner ? "VICTORY!" : "GAME OVER";
+        Label.LabelStyle titleStyle = new Label.LabelStyle();
+        titleStyle.font = skin.getFont("Big_blue_font");
+        titleStyle.fontColor = isWinner ? Color.GOLD : Color.WHITE;
+        Label titleLabel = new Label(title, titleStyle);
+        titleLabel.setAlignment(Align.center);
+        popup.add(titleLabel).padBottom(20).row();
+
+        // Winner message
+        String message = isWinner ? "Congratulations! You won!" : winnerName + " wins!";
+        Label.LabelStyle msgStyle = new Label.LabelStyle();
+        msgStyle.font = skin.getFont("Blue_font");
+        msgStyle.fontColor = Color.WHITE;
+        Label messageLabel = new Label(message, msgStyle);
+        messageLabel.setAlignment(Align.center);
+        popup.add(messageLabel).padBottom(10).row();
+
+        // Credit change if available
+        if (creditChanges != null && !creditChanges.isEmpty()) {
+            int myIndex = playerOrder.indexOf(localPlayerId);
+            if (myIndex >= 0 && myIndex < creditChanges.size()) {
+                long myChange = creditChanges.get(myIndex);
+                String changeText = (myChange >= 0 ? "+" : "") + myChange + " credits";
+                Label.LabelStyle changeStyle = new Label.LabelStyle();
+                changeStyle.font = skin.getFont("Blue_font");
+                changeStyle.fontColor = myChange >= 0 ? Color.GREEN : Color.RED;
+                Label changeLabel = new Label(changeText, changeStyle);
+                changeLabel.setAlignment(Align.center);
+                popup.add(changeLabel).padBottom(20).row();
+            }
+        }
+
+        // Voting status label
+        Label.LabelStyle statusStyle = new Label.LabelStyle();
+        statusStyle.font = skin.getFont("Blue_font");
+        statusStyle.fontColor = Color.YELLOW;
+        votingStatusLabel = new Label("Waiting for votes: 0/4", statusStyle);
+        votingStatusLabel.setAlignment(Align.center);
+        popup.add(votingStatusLabel).padBottom(20).row();
+
+        // Buttons
+        Table buttonTable = new Table();
+
+        TextButton playAgainBtn = new TextButton("PLAY AGAIN", skin, "blue_text_button");
+        playAgainBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                if (!hasVoted) {
+                    sendPlayAgainVote("PLAY_AGAIN");
+                    hasVoted = true;
+                    playAgainBtn.setDisabled(true);
+                    showWarningToast("Vote submitted!");
+                }
+            }
+        });
+
+        TextButton lobbyBtn = new TextButton("RETURN TO LOBBY", skin, "blue_text_button");
+        lobbyBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                sendPlayAgainVote("RETURN_TO_LOBBY");
+            }
+        });
+
+        buttonTable.add(playAgainBtn).width(200).height(60).padRight(20);
+        buttonTable.add(lobbyBtn).width(250).height(60);
+
+        popup.add(buttonTable);
+
+        endGameOverlay.add(popup).center();
+        stage.addActor(endGameOverlay);
+    }
+
+    /**
+     * Send play again vote to server.
+     */
+    private void sendPlayAgainVote(String voteType) {
+        PlayAgainVotePacket packet = new PlayAgainVotePacket();
+        packet.setRoomId(roomId);
+        packet.setPlayerId(localPlayerId);
+        packet.setVoteType(voteType);
+
+        if (networkService != null) {
+            networkService.sendPacket(packet);
+        }
+
+        Gdx.app.log(TAG, "Sent vote: " + voteType);
+    }
+
+    /**
+     * Return to lobby.
+     */
+    private void returnToLobby() {
+        Gdx.app.log(TAG, "Returning to lobby...");
+        if (onReturnToLobby != null) {
+            onReturnToLobby.run();
+        }
+    }
+
+    /**
+     * Set callback for returning to lobby.
+     */
+    public void setOnReturnToLobby(Runnable callback) {
+        this.onReturnToLobby = callback;
     }
 
     // ==================== TOAST ====================
